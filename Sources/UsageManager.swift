@@ -216,7 +216,7 @@ class UsageManager: ObservableObject {
     @Published var todayStats = UsageStats()
     @Published var weekStats = UsageStats()
     @Published var monthStats = UsageStats()
-    enum Tab: Int { case usage, analytics, timeline, roi }
+    enum Tab: Int { case usage, analytics, timeline, roi, memory }
     @Published var selectedTab: Tab = .usage
     @Published var isLoadingStats = false
     @Published var sessionHistory: [SessionInfo] = []
@@ -278,6 +278,10 @@ class UsageManager: ObservableObject {
     @Published var roiStats: ROIStats = .empty
     @Published var isLoadingROI = false
     @Published var isGitAvailable = false
+
+    // MARK: - Memory (claude-mem)
+
+    let memoryManager = MemoryManager()
 
     // MARK: - État de l'interface
 

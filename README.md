@@ -152,36 +152,34 @@ git tag v2.8.0 && git push origin v2.8.0
 # GitHub Actions builds the .dmg automatically
 ```
 
-## Roadmap
+## Changelog
 
-- [x] Multiple model quotas (Sonnet, Opus, weekly)
-- [x] Cost analytics from JSONL files
-- [x] Interactive sparkline chart (7/14/30d)
-- [x] Export CSV / copy stats
-- [x] Burn rate prediction
-- [x] Per-project cost breakdown
-- [x] Session history with topics
-- [x] Active session detection
-- [x] Daily budget tracking
-- [x] Model advisor tips
-- [x] Reset notifications
-- [x] Auto-detect credentials
-- [x] VoiceOver accessibility
-- [x] Global keyboard shortcut (⌥⌘C)
-- [x] Homebrew cask distribution
+### v2.14.0
+- **New**: Memory tab — browse claude-mem persistent memories with search, project filter, and install guide
+
+### v2.13.1
+- **Fix**: OAuth token refresh no longer persists tokens — prevents daily 401 errors
+
+### v2.13.0
+- **Perf**: Single JSON decode per JSONL line, direct Data line splitting, single-pass file traversal, binary search for ROI matching
+
+### v2.12.0
+- **Improved**: Logging, error handling, forecasting, and exports
+
+### v2.11.0
+- **New**: ROI tab — correlates git commits with Claude sessions (cost/commit, per-project, per-model, 30-day trend)
+
+### v2.10.0
+- **New**: Updated model pricing, landing page SEO, download counter
+- **Fix**: Project cost truncation, mobile layout, 429 handling
+
+### v2.9.0
+- **Fix**: Token refresh race condition, notification spam, reset timer, CSV export, duplicate alert rules
 
 ### v2.8.0
+- **New**: Desktop widget, usage heatmap, live session cost, per-project budgets, Shortcuts.app, multi-account, custom alerts
 
-- [x] macOS Desktop Widget (WidgetKit) — quota gauges on the desktop
-- [x] Usage heatmap — GitHub-style calendar showing daily usage intensity
-- [x] Live session cost — real-time cost counter for the active Claude Code session
-- [x] Week-over-week comparison — "This week vs last week" delta view
-- [x] Per-project budget — set a monthly $ limit per project with alerts
-- [x] Efficiency metrics — cost/message trend, avg tokens/session, cache hit rate
-- [x] Shortcuts.app integration — expose "Get usage" and "Refresh" as Shortcuts actions
-- [x] Multi-account support — switch between work/personal Claude accounts
-- [x] Custom alert rules — "Notify me when Opus 7d > 60%" with per-quota thresholds
-- [x] Session annotations — tag or star sessions for later reference
+[Full changelog →](CHANGELOG.md)
 
 ## License
 

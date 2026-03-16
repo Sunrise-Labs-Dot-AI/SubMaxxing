@@ -2,6 +2,65 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.14.0] - 2026-03-16
+
+### Added
+- Memory tab — integrates claude-mem plugin data (SQLite read-only) to browse Claude's persistent memories
+- Memory search and project filter
+- Stats cards showing total memories, sessions, projects, and weekly count
+- Install guide encart when claude-mem is not installed
+- Changelog section on landing page and README
+- Changelog nav link on landing page
+
+### Changed
+- Release checklist in CLAUDE.md now includes updating CHANGELOG.md, README, and landing page changelog
+
+## [2.13.1] - 2026-03-16
+
+### Fixed
+- OAuth token refresh no longer persists tokens to `~/.claude/.credentials.json` — prevents daily 401 errors by keeping refreshed tokens in-memory only (Claude Code manages credentials)
+
+## [2.13.0] - 2026-03-16
+
+### Performance
+- Single JSON decode per JSONL line via `JSONLContent` Decodable enum (eliminates JSONSerialization + JSONDecoder double-parse)
+- Direct `Data` line splitting in `enumerateJSONLines` — avoids Data→String→Data roundtrip
+- Single-pass file traversal with `analyzeWithSessions()` combining stats + recent sessions
+- `resourceValues(forKeys:)` replaces `attributesOfItem(atPath:)` for file metadata (fewer syscalls)
+- `.utility` QoS for background stat computation instead of `.userInitiated`
+- Binary search + reverse scan for ROI assisted commit matching
+- Dedicated `sessionCost(for:)` avoids re-scanning all files for active session cost
+
+### Changed
+- Updated README with 4 real screenshots (Usage, Analytics, Timeline, ROI)
+
+## [2.12.0] - 2026-03-14
+
+### Added
+- Quality improvements to logging, error handling, forecasting, and exports
+
+## [2.11.0] - 2026-03-13
+
+### Added
+- ROI tab — correlates git commits with Claude sessions to show cost per commit
+- ROI sparkline with 30-day trend and cost/commit efficiency tracking
+- Per-project and per-model ROI breakdown
+- GitAnalyzer module for git log parsing and commit data extraction
+
+## [2.10.0] - 2026-03-12
+
+### Added
+- Updated Opus and Haiku pricing to March 2026 rates
+- Landing page SEO improvements: keywords, FAQ schema, sitemap.xml, robots.txt
+- Live download counter and GoatCounter analytics on landing page
+- GitHub stars badge promoted on landing page
+
+### Fixed
+- Project cost truncation in Analytics tab
+- Setup section layout — 3-column grid and shorter brew command
+- Mobile responsive layout for landing page
+- 429 stale token handling
+
 ## [2.9.0] - 2026-03-11
 
 ### Fixed

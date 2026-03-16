@@ -915,6 +915,7 @@
         <div class="nav-links">
             <a href="#features">Features</a>
             <a href="#setup">Setup</a>
+            <a href="#changelog">Changelog</a>
             <a href="https://github.com/Lcharvol/Claude-God" target="_blank" class="nav-star">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14" style="flex-shrink:0"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
                 Star <span id="nav-stars" style="opacity:0.6"></span>
@@ -1180,6 +1181,85 @@
                 <p style="color:var(--text-2);margin-top:0.75rem;font-size:0.88rem;line-height:1.6">The session timeline lets you browse your Claude Code usage day by day. Each session shows the project name, time range, total cost, and model used. Click to expand and see individual messages with their token counts, model, and cost.</p>
             </details>
         </div>
+    </div>
+</section>
+
+<!-- CHANGELOG -->
+<section class="section" id="changelog" style="padding-top:2rem">
+    <div class="section-inner reveal">
+        <p class="section-label">Changelog</p>
+        <h2 class="section-title">What's new</h2>
+        <p class="section-desc">Recent releases and improvements.</p>
+
+        <div style="max-width:640px;margin:0 auto;display:flex;flex-direction:column;gap:1px;background:var(--border);border-radius:16px;overflow:hidden;border:1px solid var(--border)">
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.14.0</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-16</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">New:</strong> Memory tab — browse claude-mem persistent memories with search, project filter, stats cards, and install guide when plugin is not installed.
+                </p>
+            </div>
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.13.1</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-16</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">Fix:</strong> OAuth token refresh no longer persists tokens to disk — prevents daily 401 errors for Claude Code users.
+                </p>
+            </div>
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.13.0</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-16</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">Perf:</strong> 7 optimizations — single JSON decode per JSONL line, direct Data splitting, single-pass analysis, binary search for ROI matching.
+                </p>
+            </div>
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.11.0</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-13</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">New:</strong> ROI tab — correlates git commits with Claude sessions. Shows cost/commit, per-project & per-model breakdown, 30-day trend sparkline.
+                </p>
+            </div>
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.10.0</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-12</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">New:</strong> Updated model pricing, SEO improvements, download counter. <strong style="color:var(--accent)">Fix:</strong> Project cost truncation, mobile layout.
+                </p>
+            </div>
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.9.0</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-11</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">Fix:</strong> Token refresh race condition, notification spam, reset timer, CSV export. Reduced polling, better rate limit handling.
+                </p>
+            </div>
+            <div style="background:var(--card);padding:1.5rem">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                    <span style="font-weight:700;font-size:1rem">v2.8.0</span>
+                    <span style="font-size:0.75rem;color:var(--muted)">2026-03-11</span>
+                </div>
+                <p style="color:var(--text-2);font-size:0.88rem;margin:0;line-height:1.5">
+                    <strong style="color:var(--accent)">New:</strong> Desktop widget, usage heatmap, live session cost, per-project budgets, Shortcuts.app, multi-account, custom alerts.
+                </p>
+            </div>
+        </div>
+
+        <p style="text-align:center;margin-top:1.5rem">
+            <a href="https://github.com/Lcharvol/Claude-God/blob/main/CHANGELOG.md" style="color:var(--accent);font-size:0.88rem;text-decoration:none;font-weight:500">View full changelog on GitHub &rarr;</a>
+        </p>
     </div>
 </section>
 

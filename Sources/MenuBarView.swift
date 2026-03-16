@@ -59,6 +59,8 @@ struct MenuBarView: View {
                         timelineView
                     } else if manager.selectedTab == .roi {
                         roiView
+                    } else if manager.selectedTab == .memory {
+                        memoryView
                     } else if manager.isLoading && manager.lastRefresh == nil {
                         loadingView
                     } else if let error = manager.errorMessage {
@@ -174,6 +176,11 @@ struct MenuBarView: View {
                 }
             }
             .keyboardShortcut("4", modifiers: .command)
+            SHTab(label: "Memory", isActive: manager.selectedTab == .memory) {
+                manager.selectedTab = .memory
+                manager.memoryManager.refresh()
+            }
+            .keyboardShortcut("5", modifiers: .command)
         }
         .padding(2)
         .background(
@@ -1701,6 +1708,266 @@ struct MenuBarView: View {
                 NSApplication.shared.terminate(nil)
             }
         }
+    }
+
+    // MARK: - Memory tab
+
+    @ViewBuilder
+    private var memoryView: some View {
+        let mm = manager.memoryManager
+        if !mm.isInstalled {
+            memoryInstallView
+        } else if mm.isLoading && mm.memories.isEmpty {
+            VStack(spacing: 8) {
+                ProgressView()
+                Text("Loading memories...")
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 200)
+        } else {
+            memoryContent
+        }
+    }
+
+    private var memoryInstallView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "brain")
+                .font(.system(size: 32))
+                .foregroundColor(Theme.accent)
+
+            Text("claude-mem not installed")
+                .font(.system(size: 13, weight: .semibold))
+
+            Text("Install the claude-mem plugin to give Claude persistent memory across sessions.")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8)
+
+            SHCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    SHLabel("Install")
+                    Text("npm install -g @anthropic/claude-mem")
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.primary.opacity(0.03))
+                        )
+                    SHLabel("Enable")
+                    Text("claude mcp add claude-mem -- claude-mem")
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(Color.primary.opacity(0.03))
+                        )
+                }
+            }
+
+            Button("Check again") {
+                manager.memoryManager.refresh()
+            }
+            .font(.system(size: 11))
+        }
+        .frame(maxWidth: .infinity, minHeight: 200)
+        .padding(.vertical, 8)
+    }
+
+    @ViewBuilder
+    private var memoryContent: some View {
+        let mm = manager.memoryManager
+        let stats = mm.stats
+
+        VStack(alignment: .leading, spacing: 12) {
+            // Stats cards
+            HStack(spacing: 8) {
+                SHStatCard(label: "Memories", value: "\(stats.totalMemories)", sub: "\(stats.recentCount) this week")
+                SHStatCard(label: "Sessions", value: "\(stats.totalSessions)", sub: "\(stats.totalProjects) projects")
+            }
+
+            // Search + filter
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                    TextField("Search memories...", text: Binding(
+                        get: { manager.memoryManager.searchText },
+                        set: { manager.memoryManager.searchText = $0 }
+                    ))
+                        .font(.system(size: 11))
+                        .textFieldStyle(.plain)
+                        .onSubmit { manager.memoryManager.refresh() }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                        .fill(Theme.muted)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                                .stroke(Theme.border, lineWidth: 1)
+                        )
+                )
+
+                if !mm.projects.isEmpty {
+                    Menu {
+                        Button("All projects") {
+                            manager.memoryManager.selectedProject = nil
+                            manager.memoryManager.refresh()
+                        }
+                        Divider()
+                        ForEach(mm.projects, id: \.self) { project in
+                            Button(projectDisplayName(project)) {
+                                manager.memoryManager.selectedProject = project
+                                manager.memoryManager.refresh()
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 9))
+                            Text(mm.selectedProject.map(projectDisplayName) ?? "All")
+                                .font(.system(size: 10))
+                                .lineLimit(1)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 5)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                                .fill(Theme.muted)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                                        .stroke(Theme.border, lineWidth: 1)
+                                )
+                        )
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                }
+            }
+
+            // Memory list
+            if mm.memories.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                    Text("No memories found")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 100)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(mm.memories.prefix(30)) { memory in
+                        memoryRow(memory)
+                    }
+                    if mm.memories.count > 30 {
+                        Text("\(mm.memories.count - 30) more...")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+        }
+    }
+
+    private func memoryRow(_ memory: ClaudeMemory) -> some View {
+        SHCard {
+            VStack(alignment: .leading, spacing: 4) {
+                // Title
+                HStack(spacing: 4) {
+                    if let title = memory.title {
+                        Text(title)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Text(memory.createdAt.formatted(date: .abbreviated, time: .omitted))
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
+                // Subtitle
+                if let subtitle = memory.subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                // Text (if no title)
+                if memory.title == nil {
+                    Text(memory.text)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                }
+
+                // Facts
+                if !memory.facts.isEmpty {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(memory.facts.prefix(3), id: \.self) { fact in
+                            HStack(alignment: .top, spacing: 4) {
+                                Text("•")
+                                    .font(.system(size: 9))
+                                    .foregroundColor(Theme.accent)
+                                Text(fact)
+                                    .font(.system(size: 10))
+                                    .lineLimit(1)
+                            }
+                        }
+                        if memory.facts.count > 3 {
+                            Text("+\(memory.facts.count - 3) more")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+
+                // Tags row
+                HStack(spacing: 4) {
+                    if let project = memory.project {
+                        memoryTag(projectDisplayName(project), icon: "folder")
+                    }
+                    if !memory.concepts.isEmpty {
+                        ForEach(memory.concepts.prefix(2), id: \.self) { concept in
+                            memoryTag(concept, icon: "tag")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func memoryTag(_ text: String, icon: String) -> some View {
+        HStack(spacing: 2) {
+            Image(systemName: icon)
+                .font(.system(size: 7))
+            Text(text)
+                .font(.system(size: 9))
+                .lineLimit(1)
+        }
+        .foregroundColor(.secondary)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                .fill(Theme.muted)
+        )
+    }
+
+    private func projectDisplayName(_ path: String) -> String {
+        // Extract last path component for display
+        (path as NSString).lastPathComponent
     }
 
     // MARK: - Helpers

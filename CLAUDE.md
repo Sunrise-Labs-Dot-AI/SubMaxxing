@@ -86,14 +86,15 @@ for session in sessions {
 
 When asked to release, follow these steps in order:
 
-1. **Bump version** in `project.yml` — update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` for both `ClaudeGod` and `ClaudeGodWidget` targets.
-2. **Build** to verify compilation: `xcodegen generate && xcodebuild -scheme ClaudeGod -configuration Debug build`.
-3. **Commit & push** to `main`.
-4. **Tag & push tag**: `git tag v{version} && git push origin v{version}`. GitHub Actions will build the `.dmg` automatically.
-5. **Wait for the release** to appear: `gh release view v{version} --repo Lcharvol/Claude-God`.
-6. **Download the DMG and compute SHA256**: `curl -sL https://github.com/Lcharvol/Claude-God/releases/download/v{version}/ClaudeGod.dmg -o /tmp/ClaudeGod.dmg && shasum -a 256 /tmp/ClaudeGod.dmg`.
-7. **Update the Homebrew tap** at `/tmp/homebrew-tap/Casks/claude-god.rb` — set the new `version` and `sha256`.
-8. **Commit & push the tap**: `cd /tmp/homebrew-tap && git add Casks/claude-god.rb && git commit -m "Update claude-god to v{version}" && git push origin main`.
+1. **Update `CHANGELOG.md`** — add a new `## [x.y.z] - YYYY-MM-DD` section at the top with all changes (### Added, ### Fixed, ### Changed, ### Performance as needed). Also update the changelog summary in `README.md` and the changelog section in `docs/index.html` (landing page).
+2. **Bump version** in `project.yml` — update `MARKETING_VERSION` and `CURRENT_PROJECT_VERSION` for both `ClaudeGod` and `ClaudeGodWidget` targets.
+3. **Build** to verify compilation: `xcodegen generate && xcodebuild -scheme ClaudeGod -configuration Debug build`.
+4. **Commit & push** to `main`.
+5. **Tag & push tag**: `git tag v{version} && git push origin v{version}`. GitHub Actions will build the `.dmg` automatically.
+6. **Wait for the release** to appear: `gh release view v{version} --repo Lcharvol/Claude-God`.
+7. **Download the DMG and compute SHA256**: `curl -sL https://github.com/Lcharvol/Claude-God/releases/download/v{version}/ClaudeGod.dmg -o /tmp/ClaudeGod.dmg && shasum -a 256 /tmp/ClaudeGod.dmg`.
+8. **Update the Homebrew tap** at `/tmp/homebrew-tap/Casks/claude-god.rb` — set the new `version` and `sha256`.
+9. **Commit & push the tap**: `cd /tmp/homebrew-tap && git add Casks/claude-god.rb && git commit -m "Update claude-god to v{version}" && git push origin main`.
 
 > **Important**: The SHA256 from a local build will NOT match the GitHub-served DMG (GitHub re-processes uploaded assets). Always compute the SHA from the downloaded release DMG, not from a local build.
 
