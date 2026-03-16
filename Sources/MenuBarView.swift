@@ -1722,7 +1722,7 @@ struct MenuBarView: View {
     }
 
     // Plugin IDs that have a custom detail UI in the app
-    private static let pluginsWithUI: Set<String> = ["claude-mem@thedotmack"]
+    private static let pluginsWithUI: Set<String> = ["claude-mem@thedotmack", "superpowers@claude-plugins-official", "frontend-design@claude-plugins-official"]
 
     @ViewBuilder
     private var extensionsView: some View {
@@ -1787,6 +1787,10 @@ struct MenuBarView: View {
             // Plugin-specific content
             if pluginId == "claude-mem@thedotmack" {
                 memoryDetailView
+            } else if pluginId == "superpowers@claude-plugins-official" {
+                superpowersDetailView
+            } else if pluginId == "frontend-design@claude-plugins-official" {
+                frontendDesignDetailView
             }
         }
     }
@@ -2448,6 +2452,267 @@ struct MenuBarView: View {
         }
     }
 
+    // MARK: - Superpowers detail view
+
+    private var superpowersDetailView: some View {
+        superpowersDetailContent(
+            sm: manager.superpowersManager
+        )
+    }
+
+    private func superpowersDetailContent(sm: SuperpowersManager) -> some View {
+        let skills = sm.skills
+        let plans = sm.plans
+        let specs = sm.specs
+
+        return VStack(alignment: .leading, spacing: 12) {
+            // Header stats
+            HStack(spacing: 8) {
+                SHStatCard(label: "Skills", value: "\(skills.count)", sub: "v\(sm.pluginVersion)")
+                SHStatCard(label: "Plans", value: "\(plans.count)", sub: "\(specs.count) specs")
+            }
+
+            // Skills list
+            SHLabel("Skills")
+            VStack(spacing: 4) {
+                ForEach(skills) { skill in
+                    superpowersSkillRow(skill)
+                }
+            }
+
+            // Plans
+            if !plans.isEmpty {
+                SHLabel("Plans")
+                VStack(spacing: 4) {
+                    ForEach(plans) { plan in
+                        superpowersPlanRow(plan)
+                    }
+                }
+            }
+
+            // Specs
+            if !specs.isEmpty {
+                SHLabel("Specs")
+                VStack(spacing: 4) {
+                    ForEach(specs) { spec in
+                        superpowersSpecRow(spec)
+                    }
+                }
+            }
+        }
+    }
+
+    private func superpowersSkillRow(_ skill: SuperpowersSkill) -> some View {
+        SHCard {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(skill.displayName)
+                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
+                    memoryTag(skill.category, icon: "tag")
+                }
+
+                Text(skill.description)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 8))
+                        Text("\(skill.lineCount) lines")
+                            .font(.system(size: 9))
+                    }
+                    .foregroundColor(.secondary)
+
+                    if skill.supportingFiles > 0 {
+                        HStack(spacing: 3) {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 8))
+                            Text("+\(skill.supportingFiles) files")
+                                .font(.system(size: 9))
+                        }
+                        .foregroundColor(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        openFileInFinder(skill.path)
+                    } label: {
+                        Image(systemName: "folder")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func superpowersPlanRow(_ plan: SuperpowersPlan) -> some View {
+        SHCard {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(plan.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer()
+                    Text(plan.date)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
+                if plan.totalSteps > 0 {
+                    HStack(spacing: 8) {
+                        // Progress bar
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(Theme.muted)
+                                    .frame(height: 4)
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(plan.progress >= 1 ? Color.green : Theme.accent)
+                                    .frame(width: geo.size.width * plan.progress, height: 4)
+                            }
+                        }
+                        .frame(height: 4)
+
+                        Text("\(plan.completedSteps)/\(plan.totalSteps)")
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(.secondary)
+
+                        Button {
+                            openFileInFinder(plan.path)
+                        } label: {
+                            Image(systemName: "folder")
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    private func superpowersSpecRow(_ spec: SuperpowersSpec) -> some View {
+        SHCard {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(spec.title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                    Text(spec.date)
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Button {
+                    openFileInFinder(spec.path)
+                } label: {
+                    Image(systemName: "folder")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    // MARK: - Frontend Design detail view
+
+    private var frontendDesignDetailView: some View {
+        frontendDesignContent(fm: manager.frontendDesignManager)
+    }
+
+    private func frontendDesignContent(fm: FrontendDesignManager) -> some View {
+        let principles = fm.principles
+        let antiPatterns = fm.antiPatterns
+        let tones = fm.tones
+
+        return VStack(alignment: .leading, spacing: 12) {
+            // Description
+            Text(fm.description)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .lineLimit(3)
+
+            // Design principles
+            SHLabel("Design Principles")
+            VStack(spacing: 4) {
+                ForEach(principles) { principle in
+                    SHCard {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: principle.icon)
+                                .font(.system(size: 12))
+                                .foregroundColor(Theme.accent)
+                                .frame(width: 20)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(principle.name)
+                                    .font(.system(size: 11, weight: .semibold))
+                                Text(principle.description)
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(3)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Aesthetic tones
+            SHLabel("Aesthetic Tones")
+            SHCard {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 4)], spacing: 4) {
+                    ForEach(tones, id: \.self) { tone in
+                        Text(tone)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                    .fill(Theme.muted)
+                            )
+                    }
+                }
+            }
+
+            // Anti-patterns
+            SHLabel("Anti-Patterns")
+            SHCard {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(antiPatterns) { pattern in
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.red.opacity(0.7))
+                            Text(pattern.text)
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+
+            // Cookbook link
+            Button {
+                NSWorkspace.shared.open(URL(string: "https://github.com/anthropics/claude-cookbooks/blob/main/coding/prompting_for_frontend_aesthetics.ipynb")!)
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "book")
+                        .font(.system(size: 9))
+                    Text("Frontend Aesthetics Cookbook")
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(Theme.accent)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Discover view (plugin marketplace)
 
     private var discoverView: some View {
@@ -2663,7 +2928,13 @@ struct MenuBarView: View {
 
     private func featuredPluginCard(_ plugin: MarketplacePlugin) -> some View {
         Button {
-            manager.memoryManager.refresh()
+            if plugin.id == "claude-mem@thedotmack" {
+                manager.memoryManager.refresh()
+            } else if plugin.id == "superpowers@claude-plugins-official" {
+                manager.superpowersManager.refresh()
+            } else if plugin.id == "frontend-design@claude-plugins-official" {
+                manager.frontendDesignManager.refresh()
+            }
             openPluginDetail = plugin.id
         } label: {
             VStack(alignment: .leading, spacing: 8) {
@@ -2743,6 +3014,8 @@ struct MenuBarView: View {
     private func pluginIcon(for pluginId: String) -> String {
         switch pluginId {
         case "claude-mem@thedotmack": return "brain"
+        case "superpowers@claude-plugins-official": return "bolt.fill"
+        case "frontend-design@claude-plugins-official": return "paintbrush.fill"
         default: return "puzzlepiece.extension"
         }
     }

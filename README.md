@@ -164,6 +164,10 @@ git tag v2.8.0 && git push origin v2.8.0
 
 ## Changelog
 
+### v2.17.0
+- **New**: Superpowers plugin UI — browse skills, view plans with progress, design specs
+- **New**: Frontend Design plugin UI — design principles, aesthetic tones, anti-patterns, cookbook link
+
 ### v2.16.0
 - **New**: Extensions tab with plugin marketplace — browse, install, and manage Claude Code plugins directly from the app
 - **New**: Featured plugin cards for plugins with custom UI (claude-mem opens inline Memory panel)

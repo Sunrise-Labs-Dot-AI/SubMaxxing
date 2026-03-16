@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.17.0] - 2026-03-16
+
+### Added
+- Superpowers plugin detail view — browse all 14 skills with descriptions, categories, and line counts; view implementation plans with progress bars and design specs
+- Frontend Design plugin detail view — design principles reference, aesthetic tones palette, anti-patterns checklist, and link to Anthropic's Frontend Aesthetics Cookbook
+- Both plugins now appear as featured cards in the Installed tab with "Open" navigation
+
 ## [2.16.1] - 2026-03-16
 
 ### Fixed

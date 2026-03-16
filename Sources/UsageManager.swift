@@ -283,6 +283,8 @@ class UsageManager: ObservableObject {
 
     let memoryManager = MemoryManager()
     let pluginManager = PluginManager()
+    let superpowersManager = SuperpowersManager()
+    let frontendDesignManager = FrontendDesignManager()
 
     // MARK: - État de l'interface
 
@@ -574,6 +576,14 @@ class UsageManager: ObservableObject {
         }.store(in: &cancellables)
 
         pluginManager.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
+
+        superpowersManager.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
+
+        frontendDesignManager.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }.store(in: &cancellables)
 
