@@ -26,6 +26,11 @@
   &nbsp;&nbsp;
   <img src="assets/screenshot-roi.png" width="320" alt="ROI — return on investment analysis">
 </p>
+<p align="center">
+  <img src="assets/screenshot-extensions-discover.png" width="320" alt="Extensions — discover and install plugins">
+  &nbsp;&nbsp;
+  <img src="assets/screenshot-extensions-installed.png" width="320" alt="Extensions — manage installed plugins">
+</p>
 
 <p align="center">
   <a href="https://github.com/Lcharvol/Claude-God/releases/latest/download/ClaudeGod.dmg"><strong>Download .dmg</strong></a> &nbsp;&middot;&nbsp;
@@ -60,6 +65,11 @@
 | | Compact mode | Minimal UI showing just percentages |
 | | Notifications | Alert when usage exceeds configurable threshold |
 | | Launch at login | Start automatically with macOS |
+| **Extensions** | Plugin marketplace | Browse, search, and install Claude Code plugins directly from the app |
+| | Category filter | Filter plugins by category (Development, Productivity, Database, etc.) |
+| | Install counts | See plugin popularity with download stats |
+| | Manage plugins | Toggle enabled/disabled, uninstall, check for updates |
+| | Plugin UI | Installed plugins with custom UI (e.g. claude-mem) open inline detail views |
 | **Design** | shadcn/ui style | Flat, minimal, bordered cards with hover effects |
 | | Dark & Light | Adapts to system appearance automatically |
 | | Accessibility | VoiceOver labels on all interactive elements |
@@ -153,6 +163,10 @@ git tag v2.8.0 && git push origin v2.8.0
 ```
 
 ## Changelog
+
+### v2.16.0
+- **New**: Extensions tab with plugin marketplace — browse, install, and manage Claude Code plugins directly from the app
+- **New**: Featured plugin cards for plugins with custom UI (claude-mem opens inline Memory panel)
 
 ### v2.15.0
 - **Fixed**: Memory tab now reads correct claude-mem schema (`observations` table)

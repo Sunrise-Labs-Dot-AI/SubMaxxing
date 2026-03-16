@@ -216,7 +216,7 @@ class UsageManager: ObservableObject {
     @Published var todayStats = UsageStats()
     @Published var weekStats = UsageStats()
     @Published var monthStats = UsageStats()
-    enum Tab: Int { case usage, analytics, timeline, roi, memory }
+    enum Tab: Int { case usage, analytics, timeline, roi, extensions }
     @Published var selectedTab: Tab = .usage
     @Published var isLoadingStats = false
     @Published var sessionHistory: [SessionInfo] = []
@@ -282,6 +282,7 @@ class UsageManager: ObservableObject {
     // MARK: - Memory (claude-mem)
 
     let memoryManager = MemoryManager()
+    let pluginManager = PluginManager()
 
     // MARK: - État de l'interface
 
@@ -569,6 +570,10 @@ class UsageManager: ObservableObject {
         }.store(in: &cancellables)
 
         memoryManager.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }.store(in: &cancellables)
+
+        pluginManager.objectWillChange.sink { [weak self] _ in
             self?.objectWillChange.send()
         }.store(in: &cancellables)
 

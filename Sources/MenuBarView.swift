@@ -21,6 +21,8 @@ private enum Theme {
 struct MenuBarView: View {
     @ObservedObject var manager: UsageManager
     @State private var copiedFeedback = false
+    @State private var extensionsSection: ExtensionsSection = .discover
+    @State private var openPluginDetail: String?  // plugin id for detail view (e.g. "claude-mem@thedotmack")
     @State private var memorySection: MemorySection = .list
     @AppStorage(UDKey.dailyRange) private var dailyRange: Int = 7
 
@@ -60,8 +62,8 @@ struct MenuBarView: View {
                         timelineView
                     } else if manager.selectedTab == .roi {
                         roiView
-                    } else if manager.selectedTab == .memory {
-                        memoryView
+                    } else if manager.selectedTab == .extensions {
+                        extensionsView
                     } else if manager.isLoading && manager.lastRefresh == nil {
                         loadingView
                     } else if let error = manager.errorMessage {
@@ -177,9 +179,10 @@ struct MenuBarView: View {
                 }
             }
             .keyboardShortcut("4", modifiers: .command)
-            SHTab(label: "Memory", isActive: manager.selectedTab == .memory) {
-                manager.selectedTab = .memory
+            SHTab(label: "Extensions", isActive: manager.selectedTab == .extensions) {
+                manager.selectedTab = .extensions
                 manager.memoryManager.refresh()
+                manager.pluginManager.refresh()
             }
             .keyboardShortcut("5", modifiers: .command)
         }
@@ -1711,14 +1714,90 @@ struct MenuBarView: View {
         }
     }
 
-    // MARK: - Memory tab
+    // MARK: - Extensions tab
+
+    private enum ExtensionsSection: String, CaseIterable {
+        case discover = "Discover"
+        case installed = "Installed"
+    }
+
+    // Plugin IDs that have a custom detail UI in the app
+    private static let pluginsWithUI: Set<String> = ["claude-mem@thedotmack"]
 
     @ViewBuilder
-    private var memoryView: some View {
-        let mm = manager.memoryManager
-        if !mm.isInstalled {
+    private var extensionsView: some View {
+        if let pluginId = openPluginDetail {
+            pluginDetailView(pluginId: pluginId)
+        } else {
+            extensionsBrowser
+        }
+    }
+
+    private var extensionsBrowser: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Top-level section picker
+            HStack(spacing: 6) {
+                ForEach(ExtensionsSection.allCases, id: \.rawValue) { section in
+                    Button {
+                        extensionsSection = section
+                    } label: {
+                        Text(section.rawValue)
+                            .font(.system(size: 10, weight: extensionsSection == section ? .semibold : .regular))
+                            .foregroundColor(extensionsSection == section ? .primary : .secondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(extensionsSection == section ? Theme.muted : Color.clear)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+                Spacer()
+            }
+
+            switch extensionsSection {
+            case .discover:
+                discoverView
+            case .installed:
+                installedPluginsView
+            }
+        }
+    }
+
+    // MARK: - Plugin detail view
+
+    @ViewBuilder
+    private func pluginDetailView(pluginId: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Back button
+            Button {
+                openPluginDetail = nil
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("Installed")
+                        .font(.system(size: 10))
+                }
+                .foregroundColor(Theme.accent)
+            }
+            .buttonStyle(.plain)
+
+            // Plugin-specific content
+            if pluginId == "claude-mem@thedotmack" {
+                memoryDetailView
+            }
+        }
+    }
+
+    // MARK: - Memory detail view (claude-mem plugin UI)
+
+    @ViewBuilder
+    private var memoryDetailView: some View {
+        if !manager.memoryManager.isInstalled {
             memoryInstallView
-        } else if mm.isLoading && mm.memories.isEmpty {
+        } else if manager.memoryManager.isLoading && manager.memoryManager.memories.isEmpty {
             VStack(spacing: 8) {
                 ProgressView()
                 Text("Loading memories...")
@@ -1727,7 +1806,7 @@ struct MenuBarView: View {
             }
             .frame(maxWidth: .infinity, minHeight: 200)
         } else {
-            memoryContent
+            memoryContentInner
         }
     }
 
@@ -1797,7 +1876,7 @@ struct MenuBarView: View {
         case projects = "Projects"
     }
 
-    private var memoryContent: some View {
+    private var memoryContentInner: some View {
         VStack(alignment: .leading, spacing: 12) {
             // Stats cards
             HStack(spacing: 8) {
@@ -2364,6 +2443,374 @@ struct MenuBarView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(.blue)
+                }
+            }
+        }
+    }
+
+    // MARK: - Discover view (plugin marketplace)
+
+    private var discoverView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Search bar
+            HStack(spacing: 4) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                TextField("Search plugins...", text: Binding(
+                    get: { manager.pluginManager.searchText },
+                    set: { manager.pluginManager.searchText = $0 }
+                ))
+                    .font(.system(size: 11))
+                    .textFieldStyle(.plain)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                    .fill(Theme.muted)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                            .stroke(Theme.border, lineWidth: 1)
+                    )
+            )
+
+            // Category filter
+            if !manager.pluginManager.categories.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 4) {
+                        categoryChip("All", isSelected: manager.pluginManager.selectedCategory == nil) {
+                            manager.pluginManager.selectedCategory = nil
+                        }
+                        ForEach(manager.pluginManager.categories, id: \.self) { cat in
+                            categoryChip(cat.capitalized, isSelected: manager.pluginManager.selectedCategory == cat) {
+                                manager.pluginManager.selectedCategory = cat
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Plugin list
+            if manager.pluginManager.isLoading && manager.pluginManager.availablePlugins.isEmpty {
+                VStack(spacing: 8) {
+                    ProgressView()
+                    Text("Loading plugins...")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 100)
+            } else if manager.pluginManager.filteredPlugins.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "puzzlepiece.extension")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                    Text("No plugins found")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 100)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(manager.pluginManager.filteredPlugins) { plugin in
+                        pluginCard(plugin)
+                    }
+                }
+            }
+        }
+    }
+
+    private func pluginCard(_ plugin: MarketplacePlugin) -> some View {
+        SHCard {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(plugin.name)
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("v\(plugin.version)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        Text(plugin.marketplace)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                    pluginActionButton(plugin)
+                }
+
+                Text(plugin.description)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+
+                HStack(spacing: 8) {
+                    if !plugin.category.isEmpty {
+                        memoryTag(plugin.displayCategory.capitalized, icon: "square.grid.2x2")
+                    }
+                    HStack(spacing: 3) {
+                        Image(systemName: "arrow.down.circle")
+                            .font(.system(size: 8))
+                        Text(PluginManager.formatInstallCount(plugin.installCount))
+                            .font(.system(size: 9))
+                    }
+                    .foregroundColor(.secondary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pluginActionButton(_ plugin: MarketplacePlugin) -> some View {
+        if manager.pluginManager.isInstalling == plugin.id {
+            ProgressView()
+                .controlSize(.small)
+        } else if plugin.isInstalled {
+            Text("Installed")
+                .font(.system(size: 9, weight: .medium))
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Theme.muted)
+                )
+        } else {
+            Button {
+                manager.pluginManager.installPlugin(plugin)
+            } label: {
+                Text("Install")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Theme.accent)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func categoryChip(_ label: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 9, weight: isSelected ? .semibold : .regular))
+                .foregroundColor(isSelected ? .primary : .secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(isSelected ? Theme.muted : Color.clear)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .stroke(Theme.border, lineWidth: isSelected ? 0 : 1)
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Installed plugins view
+
+    @ViewBuilder
+    private var installedPluginsView: some View {
+        let installed = manager.pluginManager.installedPlugins
+        let featured = installed.filter { Self.pluginsWithUI.contains($0.id) }
+        let others = installed.filter { !Self.pluginsWithUI.contains($0.id) }
+
+        return Group {
+            if installed.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "puzzlepiece.extension")
+                        .font(.system(size: 20))
+                        .foregroundColor(.secondary)
+                    Text("No plugins installed")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 100)
+            } else {
+                VStack(spacing: 10) {
+                    // Featured: plugins with custom UI
+                    if !featured.isEmpty {
+                        VStack(spacing: 6) {
+                            ForEach(featured) { plugin in
+                                featuredPluginCard(plugin)
+                            }
+                        }
+                    }
+
+                    // Other installed plugins
+                    if !others.isEmpty {
+                        if !featured.isEmpty {
+                            SHDivider()
+                        }
+                        VStack(spacing: 6) {
+                            ForEach(others) { plugin in
+                                installedPluginRow(plugin)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Featured plugin card (plugins with custom UI in the app)
+
+    private func featuredPluginCard(_ plugin: MarketplacePlugin) -> some View {
+        Button {
+            manager.memoryManager.refresh()
+            openPluginDetail = plugin.id
+        } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    // Icon
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Theme.accent.opacity(0.12))
+                            .frame(width: 36, height: 36)
+                        Image(systemName: pluginIcon(for: plugin.id))
+                            .font(.system(size: 16))
+                            .foregroundColor(Theme.accent)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(plugin.name)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(.primary)
+                            Text("v\(plugin.installedVersion ?? plugin.version)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        Text(plugin.description)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    // Open arrow
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Theme.accent)
+                }
+
+                // Status bar
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(plugin.isEnabled ? Color.green : Color.secondary)
+                            .frame(width: 6, height: 6)
+                        Text(plugin.isEnabled ? "Enabled" : "Disabled")
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                    }
+
+                    if !plugin.category.isEmpty {
+                        memoryTag(plugin.displayCategory.capitalized, icon: "square.grid.2x2")
+                    }
+
+                    Spacer()
+
+                    Toggle("", isOn: Binding(
+                        get: { plugin.isEnabled },
+                        set: { manager.pluginManager.togglePlugin(plugin, enabled: $0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+                }
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                    .fill(Theme.muted)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                            .stroke(Theme.accent.opacity(0.3), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func pluginIcon(for pluginId: String) -> String {
+        switch pluginId {
+        case "claude-mem@thedotmack": return "brain"
+        default: return "puzzlepiece.extension"
+        }
+    }
+
+    // MARK: - Regular installed plugin row
+
+    private func installedPluginRow(_ plugin: MarketplacePlugin) -> some View {
+        SHCard {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 6) {
+                            Text(plugin.name)
+                                .font(.system(size: 11, weight: .semibold))
+                            Text("v\(plugin.installedVersion ?? plugin.version)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundColor(.secondary)
+                        }
+                        if !plugin.category.isEmpty {
+                            memoryTag(plugin.displayCategory.capitalized, icon: "square.grid.2x2")
+                        }
+                    }
+                    Spacer()
+
+                    Toggle("", isOn: Binding(
+                        get: { plugin.isEnabled },
+                        set: { manager.pluginManager.togglePlugin(plugin, enabled: $0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .labelsHidden()
+                }
+
+                Text(plugin.description)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(2)
+
+                HStack {
+                    if let installed = plugin.installedVersion, installed != plugin.version {
+                        HStack(spacing: 3) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 9))
+                                .foregroundColor(.orange)
+                            Text("v\(plugin.version) available")
+                                .font(.system(size: 9))
+                                .foregroundColor(.orange)
+                        }
+                    }
+
+                    Spacer()
+
+                    if manager.pluginManager.isInstalling == plugin.id {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button {
+                            manager.pluginManager.uninstallPlugin(plugin)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 8))
+                                Text("Uninstall")
+                                    .font(.system(size: 9))
+                            }
+                            .foregroundColor(.red.opacity(0.8))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }

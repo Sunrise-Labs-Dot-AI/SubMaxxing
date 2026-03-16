@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.16.0] - 2026-03-16
+
+### Added
+- Extensions tab — replaces Memory tab with a full plugin marketplace
+- Discover sub-tab — browse all available Claude Code plugins sorted by popularity, with search and category filter
+- Installed sub-tab — manage installed plugins with enable/disable toggle, uninstall, and update indicators
+- Featured plugin cards — plugins with custom UI (claude-mem) shown prominently with icon, description, and clickable card to open detail view
+- Plugin installation directly from the app via `claude` CLI (`Process()`)
+- Category chips for filtering (Development, Productivity, Database, Design, etc.)
+- Install count display (e.g. "324.0K") from marketplace data
+
+### Changed
+- Memory tab renamed to Extensions; Memory content now accessible via claude-mem's "Open" detail view in Installed
+- Plugin data loaded from local `~/.claude/plugins/` files (no network required)
+
 ## [2.15.0] - 2026-03-16
 
 ### Fixed
