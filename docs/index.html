@@ -519,244 +519,52 @@
             animation: fade-up 0.8s ease 0.5s both;
         }
 
-        .menubar-mock {
-            width: 100%;
-            max-width: 680px;
+        .screenshots-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+            max-width: 780px;
             margin: 0 auto;
         }
 
-        /* Top macOS menu bar strip */
-        .mac-bar {
-            background: rgba(30, 30, 35, 0.95);
-            backdrop-filter: blur(30px);
-            border-radius: 10px 10px 0 0;
-            padding: 0 1rem;
-            height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.72rem;
-            font-weight: 500;
-            color: rgba(255,255,255,0.85);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-bottom: none;
-        }
-
-        .mac-bar-left {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .mac-bar-left .apple-logo { font-size: 0.85rem; opacity: 0.9; }
-
-        .mac-bar-right {
-            display: flex;
-            align-items: center;
-            gap: 0.85rem;
-        }
-
-        .mac-bar-right .claude-indicator {
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-            background: rgba(167,139,250,0.15);
-            padding: 0.15rem 0.5rem;
-            border-radius: 4px;
-            color: var(--accent);
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
-        }
-
-        .mac-bar-right .claude-indicator .c-icon {
-            font-weight: 800;
-            font-size: 0.7rem;
-        }
-
-        /* Popover window dropping from menu bar */
-        .popover-container {
-            display: flex;
-            justify-content: flex-end;
-            padding-right: 2.5rem;
-        }
-
-        .popover-arrow {
-            width: 12px;
-            height: 12px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-bottom: none;
-            border-right: none;
-            transform: rotate(45deg);
-            margin-bottom: -7px;
-            margin-right: 3rem;
+        .screenshot-card {
             position: relative;
-            z-index: 3;
-        }
-
-        .popover {
-            background: var(--surface);
-            border: 1px solid var(--border);
             border-radius: 14px;
-            width: 300px;
-            box-shadow:
-                0 25px 80px rgba(0,0,0,0.6),
-                0 0 0 1px rgba(255,255,255,0.03),
-                0 0 60px rgba(167,139,250,0.06);
             overflow: hidden;
-            position: relative;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            box-shadow:
+                0 25px 80px rgba(0,0,0,0.4),
+                0 0 60px rgba(167,139,250,0.06);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
         }
 
-        .popover-inner {
-            padding: 1.25rem;
+        .screenshot-card:hover {
+            transform: translateY(-4px);
+            box-shadow:
+                0 30px 90px rgba(0,0,0,0.5),
+                0 0 80px rgba(167,139,250,0.1);
         }
 
-        .popover-head {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            margin-bottom: 1.1rem;
-            padding-bottom: 0.85rem;
-            border-bottom: 1px solid var(--border);
+        .screenshot-card img {
+            width: 100%;
+            height: auto;
+            display: block;
         }
 
-        .popover-head .app-icon {
-            width: 30px;
-            height: 30px;
-            background: linear-gradient(135deg, var(--accent), var(--accent-2));
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 800;
-            font-size: 0.85rem;
-            color: white;
-            flex-shrink: 0;
-        }
-
-        .popover-head .app-title {
-            font-size: 0.9rem;
-            font-weight: 700;
-        }
-
-        .popover-head .app-gear {
-            margin-left: auto;
-            color: var(--muted);
-            font-size: 0.85rem;
-            cursor: default;
-        }
-
-        /* Circular gauges */
-        .gauges-row {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 1rem;
-        }
-
-        .gauge-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.35rem;
-        }
-
-        .gauge-ring {
-            position: relative;
-            width: 56px;
-            height: 56px;
-        }
-
-        .gauge-ring svg {
-            width: 56px;
-            height: 56px;
-            transform: rotate(-90deg);
-        }
-
-        .gauge-ring .track {
-            fill: none;
-            stroke: rgba(255,255,255,0.06);
-            stroke-width: 5;
-        }
-
-        .gauge-ring .progress {
-            fill: none;
-            stroke-width: 5;
-            stroke-linecap: round;
-            stroke-dasharray: 150.8;
-            stroke-dashoffset: 150.8;
-            transition: stroke-dashoffset 2s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .gauge-ring .progress.green { stroke: var(--green); filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.4)); }
-        .gauge-ring .progress.orange { stroke: var(--orange); filter: drop-shadow(0 0 4px rgba(251, 146, 60, 0.4)); }
-        .gauge-ring .progress.red { stroke: var(--red); filter: drop-shadow(0 0 4px rgba(248, 113, 113, 0.4)); }
-
-        .gauge-pct {
+        .screenshot-label {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 0.82rem;
-            font-weight: 800;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        .gauge-label {
-            font-size: 0.65rem;
-            color: var(--muted);
-            font-weight: 500;
-            text-align: center;
-        }
-
-        .popover-divider {
-            height: 1px;
-            background: var(--border);
-            margin: 0.85rem 0;
-        }
-
-        .reset-row {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            font-size: 0.78rem;
-        }
-
-        .reset-row .reset-label {
-            color: var(--muted);
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-
-        .reset-row .reset-time {
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        .popover-actions {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem 1.25rem;
-            background: var(--bg-2);
-            border-top: 1px solid var(--border);
-        }
-
-        .popover-btn {
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 0.6rem 0.8rem;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
             font-size: 0.75rem;
             font-weight: 600;
-            font-family: inherit;
-            color: var(--muted);
-            background: none;
-            border: none;
-            cursor: default;
-            display: flex;
-            align-items: center;
-            gap: 0.3rem;
+            color: rgba(255,255,255,0.9);
         }
 
-        .popover-btn.refresh { color: var(--accent); }
+        /* Old mockup CSS removed — now using real screenshots */
 
         /* ============================================
            FEATURES
@@ -1061,11 +869,7 @@
             .section-title { font-size: clamp(1.5rem, 5vw, 2rem); }
             .section-desc { font-size: 0.9rem; }
 
-            .mac-bar { display: none; }
-            .popover-container { justify-content: center; padding-right: 0; }
-            .popover-arrow { display: none; }
-            .popover { width: 100%; max-width: 300px; }
-            .gauges-row { gap: 0.5rem; }
+            .screenshots-grid { grid-template-columns: 1fr; max-width: 380px; }
             .mockup-section { margin-top: 2.5rem; }
 
             .oss-stats { gap: 1rem; flex-wrap: wrap; justify-content: center; }
@@ -1089,11 +893,7 @@
 
             .nav-cta { font-size: 0.78rem; padding: 0.5rem 1rem; }
 
-            .popover { max-width: 260px; }
-            .popover-inner { padding: 1rem; }
-            .gauge-ring, .gauge-ring svg { width: 46px; height: 46px; }
-            .gauge-pct { font-size: 0.7rem; }
-            .gauge-label { font-size: 0.58rem; }
+            .screenshots-grid { gap: 1rem; }
 
             .oss-stats { gap: 0.75rem; }
             .oss-stat .num { font-size: 1.25rem; }
@@ -1173,92 +973,24 @@
         </p>
     </div>
 
-    <!-- Mockup -->
+    <!-- Screenshots -->
     <div class="mockup-section">
-        <div class="menubar-mock">
-            <!-- macOS menu bar -->
-            <div class="mac-bar">
-                <div class="mac-bar-left">
-                    <span class="apple-logo"></span>
-                    <span>Finder</span>
-                    <span>File</span>
-                    <span>Edit</span>
-                    <span>View</span>
-                </div>
-                <div class="mac-bar-right">
-                    <span>Tue 10 Mar</span>
-                    <div class="claude-indicator">
-                        <span class="c-icon">C</span>
-                        <span id="menubar-pct">78%</span>
-                    </div>
-                </div>
+        <div class="screenshots-grid">
+            <div class="screenshot-card">
+                <img src="images/screenshot-usage.png" alt="Usage tab — quota gauges, burn rate, live session cost" loading="lazy">
+                <div class="screenshot-label">Usage</div>
             </div>
-
-            <!-- Popover -->
-            <div class="popover-container">
-                <div>
-                    <div style="display:flex;justify-content:flex-end;padding-right:2rem;">
-                        <div class="popover-arrow"></div>
-                    </div>
-                    <div class="popover">
-                        <div class="popover-inner">
-                            <div class="popover-head">
-                                <div class="app-icon">C</div>
-                                <span class="app-title">Claude God</span>
-                                <span class="app-gear">&#9881;&#65039;</span>
-                            </div>
-
-                            <!-- Navigation tabs -->
-                            <div style="display:flex;gap:2px;padding:3px;background:rgba(255,255,255,0.03);border-radius:8px;margin-bottom:1rem;">
-                                <div style="flex:1;text-align:center;padding:4px 0;font-size:0.7rem;font-weight:600;color:var(--accent);background:rgba(167,139,250,0.12);border-radius:6px;">Usage</div>
-                                <div style="flex:1;text-align:center;padding:4px 0;font-size:0.7rem;font-weight:600;color:var(--muted);border-radius:6px;">Stats</div>
-                            </div>
-
-                            <!-- Circular gauges -->
-                            <div class="gauges-row">
-                                <div class="gauge-item">
-                                    <div class="gauge-ring">
-                                        <svg viewBox="0 0 56 56"><circle class="track" cx="28" cy="28" r="24"/><circle class="progress green" id="gauge-session" cx="28" cy="28" r="24"/></svg>
-                                        <span class="gauge-pct" style="color:var(--green)">32%</span>
-                                    </div>
-                                    <span class="gauge-label">Session (5h)</span>
-                                </div>
-                                <div class="gauge-item">
-                                    <div class="gauge-ring">
-                                        <svg viewBox="0 0 56 56"><circle class="track" cx="28" cy="28" r="24"/><circle class="progress orange" id="gauge-weekly" cx="28" cy="28" r="24"/></svg>
-                                        <span class="gauge-pct" style="color:var(--orange)">67%</span>
-                                    </div>
-                                    <span class="gauge-label">Weekly</span>
-                                </div>
-                                <div class="gauge-item">
-                                    <div class="gauge-ring">
-                                        <svg viewBox="0 0 56 56"><circle class="track" cx="28" cy="28" r="24"/><circle class="progress green" id="gauge-sonnet" cx="28" cy="28" r="24"/></svg>
-                                        <span class="gauge-pct" style="color:var(--green)">18%</span>
-                                    </div>
-                                    <span class="gauge-label">Sonnet (7d)</span>
-                                </div>
-                            </div>
-
-                            <div class="popover-divider"></div>
-
-                            <div class="reset-row">
-                                <span class="reset-label">
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                                    Next reset
-                                </span>
-                                <span class="reset-time" id="countdown">2m 34s</span>
-                            </div>
-                        </div>
-
-                        <div class="popover-actions">
-                            <button class="popover-btn refresh">
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                                Refresh
-                            </button>
-                            <button class="popover-btn">Quit</button>
-                        </div>
-                    </div>
-                </div>
+            <div class="screenshot-card">
+                <img src="images/screenshot-analytics.png" alt="Analytics tab — cost breakdown, sparkline, model usage" loading="lazy">
+                <div class="screenshot-label">Analytics</div>
+            </div>
+            <div class="screenshot-card">
+                <img src="images/screenshot-timeline.png" alt="Timeline tab — session history with topics and costs" loading="lazy">
+                <div class="screenshot-label">Timeline</div>
+            </div>
+            <div class="screenshot-card">
+                <img src="images/screenshot-roi.png" alt="ROI tab — return on investment per project" loading="lazy">
+                <div class="screenshot-label">ROI</div>
             </div>
         </div>
     </div>
@@ -1480,22 +1212,6 @@
         nav.classList.toggle('scrolled', window.scrollY > 40);
     });
 
-    // Animate circular gauges on load
-    window.addEventListener('load', () => {
-        const circumference = 2 * Math.PI * 24; // r=24
-        setTimeout(() => {
-            const gauges = [
-                { id: 'gauge-session', pct: 32 },
-                { id: 'gauge-weekly', pct: 67 },
-                { id: 'gauge-sonnet', pct: 18 }
-            ];
-            gauges.forEach(g => {
-                const el = document.getElementById(g.id);
-                if (el) el.style.strokeDashoffset = circumference * (1 - g.pct / 100);
-            });
-        }, 600);
-    });
-
     // Fetch repo info from GitHub (version + stars + downloads)
     fetch('https://api.github.com/repos/Lcharvol/Claude-God')
         .then(r => r.json())
@@ -1532,15 +1248,6 @@
         })
         .catch(() => {});
 
-    // Live countdown
-    let sec = 154;
-    const cd = document.getElementById('countdown');
-    setInterval(() => {
-        sec = sec <= 0 ? 300 : sec - 1;
-        const m = Math.floor(sec / 60);
-        const s = sec % 60;
-        cd.textContent = m + 'm ' + String(s).padStart(2, '0') + 's';
-    }, 1000);
 </script>
 
 <!-- GoatCounter — free, privacy-friendly analytics (no cookies) -->
