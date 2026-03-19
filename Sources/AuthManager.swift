@@ -54,33 +54,39 @@ class AuthManager: ObservableObject {
             return
         }
 
-        // 2. Keychain (service "Claude Code-credentials")
-        if let keychainJSON = loadFromKeychain(),
-           let oauth = keychainJSON["claudeAiOauth"] as? [String: Any],
-           let token = oauth["accessToken"] as? String, !token.isEmpty {
-            accessToken = token
-            refreshToken = oauth["refreshToken"] as? String
-            tokenExpiresAt = oauth["expiresAt"] as? Double
-            subscriptionType = oauth["subscriptionType"] as? String ?? ""
-            credentialSource = .keychain
-            isAuthenticated = true
-            Log.info("Credentials loaded from Keychain (type: \(subscriptionType))")
-            return
-        }
+        // 2. Keychain — load off main thread to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let keychainJSON = Self.loadFromKeychain()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let keychainJSON,
+                   let oauth = keychainJSON["claudeAiOauth"] as? [String: Any],
+                   let token = oauth["accessToken"] as? String, !token.isEmpty {
+                    self.accessToken = token
+                    self.refreshToken = oauth["refreshToken"] as? String
+                    self.tokenExpiresAt = oauth["expiresAt"] as? Double
+                    self.subscriptionType = oauth["subscriptionType"] as? String ?? ""
+                    self.credentialSource = .keychain
+                    self.isAuthenticated = true
+                    Log.info("Credentials loaded from Keychain (type: \(self.subscriptionType))")
+                    return
+                }
 
-        // 3. Environment variable
-        if let envToken = ProcessInfo.processInfo.environment["CLAUDE_CODE_OAUTH_TOKEN"],
-           !envToken.isEmpty {
-            accessToken = envToken
-            credentialSource = .environment
-            isAuthenticated = true
-            Log.info("Credentials loaded from environment")
-            return
-        }
+                // 3. Environment variable
+                if let envToken = ProcessInfo.processInfo.environment["CLAUDE_CODE_OAUTH_TOKEN"],
+                   !envToken.isEmpty {
+                    self.accessToken = envToken
+                    self.credentialSource = .environment
+                    self.isAuthenticated = true
+                    Log.info("Credentials loaded from environment")
+                    return
+                }
 
-        credentialSource = .none
-        isAuthenticated = false
-        Log.warn("No credentials found")
+                self.credentialSource = .none
+                self.isAuthenticated = false
+                Log.warn("No credentials found")
+            }
+        }
     }
 
     // MARK: - Token management
@@ -159,7 +165,7 @@ class AuthManager: ObservableObject {
 
     // MARK: - Keychain
 
-    private func loadFromKeychain() -> [String: Any]? {
+    private static func loadFromKeychain() -> [String: Any]? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
         process.arguments = ["find-generic-password", "-s", "Claude Code-credentials", "-w"]

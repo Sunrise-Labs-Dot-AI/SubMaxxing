@@ -620,9 +620,7 @@ class SessionAnalyzer {
         var sessions: [SessionInfo] = []
 
         for fileInfo in recentFiles {
-            guard let data = try? Data(contentsOf: fileInfo.url),
-                  let content = String(data: data, encoding: .utf8)
-            else { continue }
+            guard let data = try? Data(contentsOf: fileInfo.url) else { continue }
 
             var topic = ""
             var firstTimestamp: Date?
@@ -631,10 +629,8 @@ class SessionAnalyzer {
             var messageCount = 0
             var modelCounts: [String: Int] = [:]
 
-            content.enumerateLines { line, stop in
-                guard !line.isEmpty,
-                      let lineData = line.data(using: .utf8),
-                      let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData)
+            enumerateJSONLines(in: data) { lineData in
+                guard let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData)
                 else { return }
 
                 if entry.type == "human" || entry.type == "user",
@@ -724,9 +720,7 @@ class SessionAnalyzer {
         var sessions: [SessionInfo] = []
 
         for fileInfo in filesToParse {
-            guard let data = try? Data(contentsOf: fileInfo.url),
-                  let content = String(data: data, encoding: .utf8)
-            else { continue }
+            guard let data = try? Data(contentsOf: fileInfo.url) else { continue }
 
             var topic = ""
             var firstTimestamp: Date?
@@ -735,11 +729,7 @@ class SessionAnalyzer {
             var messageCount = 0
             var modelCounts: [String: Int] = [:]
 
-            content.enumerateLines { line, stop in
-                guard !line.isEmpty,
-                      let lineData = line.data(using: .utf8)
-                else { return }
-
+            enumerateJSONLines(in: data) { lineData in
                 // Single decode per line — handles both user and assistant
                 guard let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData) else { return }
 
@@ -807,17 +797,13 @@ class SessionAnalyzer {
 
     /// Compute cost for a specific JSONL file (used by active session detection)
     static func sessionCost(for fileURL: URL) -> (cost: Double, messages: Int)? {
-        guard let data = try? Data(contentsOf: fileURL),
-              let content = String(data: data, encoding: .utf8)
-        else { return nil }
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
 
         var cost: Double = 0
         var messageCount = 0
 
-        content.enumerateLines { line, _ in
-            guard !line.isEmpty,
-                  let lineData = line.data(using: .utf8),
-                  let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData),
+        enumerateJSONLines(in: data) { lineData in
+            guard let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData),
                   entry.type == "assistant",
                   let message = entry.message,
                   let usage = message.usage,
@@ -918,9 +904,7 @@ extension SessionAnalyzer {
                 // Skip files that are too large
                 if let fileSize = values.fileSize, UInt64(fileSize) > maxFileSize { continue }
 
-                guard let data = try? Data(contentsOf: file),
-                      let content = String(data: data, encoding: .utf8)
-                else { continue }
+                guard let data = try? Data(contentsOf: file) else { continue }
 
                 var messages: [TimelineMessage] = []
                 var lastUserText = ""
@@ -928,12 +912,7 @@ extension SessionAnalyzer {
                 var modelCounts: [String: Int] = [:]
                 var sessionHasMatchingDay = false
 
-                content.enumerateLines { line, _ in
-                    guard !line.isEmpty,
-                          let lineData = line.data(using: .utf8)
-                    else { return }
-
-                    // Single decode per line — handles both user and assistant
+                enumerateJSONLines(in: data) { lineData in
                     guard let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData) else { return }
 
                     // Extract user messages for topic context
@@ -1047,21 +1026,14 @@ extension SessionAnalyzer {
 
                 if let fileSize = values.fileSize, UInt64(fileSize) > maxFileSize { continue }
 
-                guard let data = try? Data(contentsOf: file),
-                      let content = String(data: data, encoding: .utf8)
-                else { continue }
+                guard let data = try? Data(contentsOf: file) else { continue }
 
                 var messages: [TimelineMessage] = []
                 var lastUserText = ""
                 var sessionTopic = ""
                 var modelCounts: [String: Int] = [:]
 
-                content.enumerateLines { line, _ in
-                    guard !line.isEmpty,
-                          let lineData = line.data(using: .utf8)
-                    else { return }
-
-                    // Single decode per line — handles both user and assistant
+                enumerateJSONLines(in: data) { lineData in
                     guard let entry = try? jsonDecoder.decode(JSONLEntry.self, from: lineData) else { return }
 
                     if entry.type == "human" || entry.type == "user",

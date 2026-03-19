@@ -195,25 +195,54 @@ struct MenuBarView: View {
 
     // MARK: - Update banner
 
+    @State private var copiedBrewCommand = false
+
     private var updateBanner: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "arrow.down.circle")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundColor(Theme.accent)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Theme.accent)
 
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Update available")
-                    .font(.system(size: 11, weight: .medium))
-                Text("v\(UpdateChecker.currentVersion) → v\(manager.latestVersion)")
-                    .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(.secondary)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Update available")
+                        .font(.system(size: 11, weight: .medium))
+                    Text("v\(UpdateChecker.currentVersion) → v\(manager.latestVersion)")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+
+                Spacer()
+
+                SHButton(label: "Update", style: .primary) {
+                    manager.installUpdate()
+                }
             }
 
-            Spacer()
-
-            SHButton(label: "Update", style: .primary) {
-                manager.installUpdate()
+            // Brew command copy
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString("brew upgrade claude-god", forType: .string)
+                copiedBrewCommand = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    copiedBrewCommand = false
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: copiedBrewCommand ? "checkmark" : "doc.on.clipboard")
+                        .font(.system(size: 10))
+                    Text(copiedBrewCommand ? "Copied!" : "brew upgrade claude-god")
+                        .font(.system(size: 11, design: .monospaced))
+                }
+                .foregroundColor(copiedBrewCommand ? .green : .secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(Color.primary.opacity(0.03))
+                )
             }
+            .buttonStyle(.plain)
         }
         .padding(10)
         .background(

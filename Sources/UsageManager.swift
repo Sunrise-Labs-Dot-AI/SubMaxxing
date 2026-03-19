@@ -1343,7 +1343,14 @@ class UsageManager: ObservableObject {
 
     // MARK: - Widget data sharing
 
+    private var lastWidgetQuotaHash: Int = 0
+
     private func updateWidgetData() {
+        // Skip widget update if quotas haven't changed
+        let currentHash = quotas.map { "\($0.label):\(Int($0.utilization))" }.joined().hashValue
+        guard currentHash != lastWidgetQuotaHash else { return }
+        lastWidgetQuotaHash = currentHash
+
         let defaults = UserDefaults(suiteName: "group.com.lcharvol.claude-god") ?? .standard
         let quotaData = quotas.enumerated().map { index, q in
             ["utilization": q.utilization, "labelIndex": Double(index)]
@@ -1355,7 +1362,6 @@ class UsageManager: ObservableObject {
         defaults.set(todayStats.totalMessages, forKey: UDKey.widgetTodayMessages)
         defaults.set(Date().timeIntervalSince1970, forKey: UDKey.widgetLastUpdate)
 
-        // Trigger widget reload if available
         if #available(macOS 14.0, *) {
             WidgetCenter.shared.reloadAllTimelines()
         }

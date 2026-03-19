@@ -171,9 +171,9 @@ class MemoryManager: ObservableObject {
 
         let allMemories = queryMemories(db: db, search: search, project: project)
         let stats = computeStats(db: db)
-        let projects = queryProjects(db: db)
         let daily = queryDailyActivity(db: db)
         let summaries = queryProjectSummaries(db: db)
+        let projects = summaries.map(\.project)
 
         return LoadResult(memories: allMemories, stats: stats, projects: projects, dailyActivity: daily, projectSummaries: summaries)
     }
@@ -246,16 +246,28 @@ class MemoryManager: ObservableObject {
     }
 
     private static func computeStats(db: OpaquePointer) -> MemoryStats {
-        let totalMemories = queryCount(db: db, sql: "SELECT COUNT(*) FROM observations")
-        let totalSessions = queryCount(db: db, sql: "SELECT COUNT(DISTINCT memory_session_id) FROM observations")
-        let totalProjects = queryCount(db: db, sql: "SELECT COUNT(DISTINCT project) FROM observations WHERE project IS NOT NULL AND project != ''")
-
         let sevenDaysAgo = Date().addingTimeInterval(-7 * 24 * 3600).timeIntervalSince1970
-        let recentCount = queryCount(db: db, sql: "SELECT COUNT(*) FROM observations WHERE created_at_epoch > \(sevenDaysAgo)")
-
-        // Top projects
-        var topProjects: [(name: String, count: Int)] = []
+        let sql = """
+            SELECT
+                (SELECT COUNT(*) FROM observations),
+                (SELECT COUNT(DISTINCT memory_session_id) FROM observations),
+                (SELECT COUNT(DISTINCT project) FROM observations WHERE project IS NOT NULL AND project != ''),
+                (SELECT COUNT(*) FROM observations WHERE created_at_epoch > \(sevenDaysAgo))
+            """
         var stmt: OpaquePointer?
+        var totalMemories = 0, totalSessions = 0, totalProjects = 0, recentCount = 0
+        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
+            if sqlite3_step(stmt) == SQLITE_ROW {
+                totalMemories = Int(sqlite3_column_int(stmt, 0))
+                totalSessions = Int(sqlite3_column_int(stmt, 1))
+                totalProjects = Int(sqlite3_column_int(stmt, 2))
+                recentCount = Int(sqlite3_column_int(stmt, 3))
+            }
+            sqlite3_finalize(stmt)
+        }
+
+        // Top projects (keep separate - different result shape)
+        var topProjects: [(name: String, count: Int)] = []
         let topSQL = "SELECT project, COUNT(*) as cnt FROM observations WHERE project IS NOT NULL AND project != '' GROUP BY project ORDER BY cnt DESC LIMIT 5"
         if sqlite3_prepare_v2(db, topSQL, -1, &stmt, nil) == SQLITE_OK {
             while sqlite3_step(stmt) == SQLITE_ROW {
@@ -273,19 +285,6 @@ class MemoryManager: ObservableObject {
             recentCount: recentCount,
             topProjects: topProjects
         )
-    }
-
-    private static func queryProjects(db: OpaquePointer) -> [String] {
-        var projects: [String] = []
-        var stmt: OpaquePointer?
-        let sql = "SELECT DISTINCT project FROM observations WHERE project IS NOT NULL AND project != '' ORDER BY project"
-        if sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK {
-            while sqlite3_step(stmt) == SQLITE_ROW {
-                projects.append(columnText(stmt, 0))
-            }
-            sqlite3_finalize(stmt)
-        }
-        return projects
     }
 
     // MARK: - Daily activity (last 30 days)
@@ -449,10 +448,4 @@ class MemoryManager: ObservableObject {
         return array
     }
 
-    private static func queryCount(db: OpaquePointer, sql: String) -> Int {
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return 0 }
-        defer { sqlite3_finalize(stmt) }
-        return sqlite3_step(stmt) == SQLITE_ROW ? Int(sqlite3_column_int(stmt, 0)) : 0
-    }
 }

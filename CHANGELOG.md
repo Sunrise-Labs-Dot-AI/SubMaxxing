@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.19.0] - 2026-03-19
+
+### Performance
+- JSONL parsing: eliminate Data→String→Data roundtrip in 5 functions (saves memory on 100MB+ files)
+- SQLite: combine 9 queries into 4 per refresh (stats as single subquery, projects derived from summaries)
+- Widget: skip update when quotas unchanged (avoid JSON encode + WidgetCenter reload)
+- Keychain: read credentials off main thread to prevent UI freezes on startup
+
+### Added
+- "brew upgrade claude-god" copy button in update banner
+
 ## [2.18.1] - 2026-03-18
 
 ### Fixed

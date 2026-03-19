@@ -164,6 +164,9 @@ git tag v2.8.0 && git push origin v2.8.0
 
 ## Changelog
 
+### v2.19.0
+- **Perf**: JSONL parsing without Data→String roundtrip, SQLite 9→4 queries, widget skip unchanged, keychain off main thread
+
 ### v2.18.0
 - **New**: GitHub, swift-lsp, code-review, code-simplifier, context7, playwright plugin detail views (9 total)
 - **Fixed**: Menu bar icon contrast, font sizes +1pt, wider window
