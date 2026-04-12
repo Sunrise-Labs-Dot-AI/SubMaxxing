@@ -277,7 +277,7 @@ struct MenuBarView: View {
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
                             SHBadge(text: "Not connected", color: .orange)
-                            Text("Run `claude login` in Terminal")
+                            Text("Run `claude auth login` in Terminal")
                                 .font(.system(size: 11))
                                 .foregroundColor(.secondary)
                             SHButton(label: "Retry", icon: "arrow.clockwise", style: .outline) {
@@ -1729,7 +1729,7 @@ struct MenuBarView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(error)
                         .font(.system(size: 12, weight: .medium))
-                    Text(isAuth ? "Run `claude login` in Terminal" :
+                    Text(isAuth ? "Run `claude auth login` in Terminal" :
                          isNetwork ? "Check your internet connection" :
                          isRateLimit ? "Will auto-retry shortly" :
                          "Try refreshing or check settings")

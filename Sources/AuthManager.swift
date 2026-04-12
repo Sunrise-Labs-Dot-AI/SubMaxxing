@@ -97,12 +97,19 @@ class AuthManager: ObservableObject {
         return Date().addingTimeInterval(5 * 60) >= expiresDate
     }
 
-    /// Reload credentials from disk only (not keychain) to avoid interfering with Claude Code.
-    /// Claude Code manages the OAuth refresh cycle — we should not compete for keychain access.
+    var tokenExpired: Bool {
+        guard let expiresAt = tokenExpiresAt else { return false }
+        let expiresDate = Date(timeIntervalSince1970: expiresAt / 1000)
+        return Date() >= expiresDate
+    }
+
+    /// Reload credentials from disk first, then keychain as fallback.
+    /// On macOS, Claude Code may store credentials exclusively in keychain
+    /// (deleting .credentials.json), so we must check both sources.
     func reloadCredentials(completion: @escaping (Bool) -> Void) {
         let previousToken = accessToken
 
-        // Only try the file, not keychain — avoid racing with Claude Code's keychain access
+        // 1. Try file first
         if let data = try? Data(contentsOf: Self.credentialsPath),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let oauth = json["claudeAiOauth"] as? [String: Any],
@@ -113,13 +120,35 @@ class AuthManager: ObservableObject {
             subscriptionType = oauth["subscriptionType"] as? String ?? ""
             credentialSource = .file
             isAuthenticated = true
+            let changed = accessToken != previousToken
+            if changed { Log.info("Credentials reloaded from file") }
+            completion(true)
+            return
         }
 
-        let changed = accessToken != previousToken && isAuthenticated
-        if changed {
-            Log.info("Credentials reloaded from file")
+        // 2. Fallback to keychain (off main thread)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let keychainJSON = Self.loadFromKeychain()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if let keychainJSON,
+                   let oauth = keychainJSON["claudeAiOauth"] as? [String: Any],
+                   let token = oauth["accessToken"] as? String, !token.isEmpty {
+                    self.accessToken = token
+                    self.refreshToken = oauth["refreshToken"] as? String
+                    self.tokenExpiresAt = oauth["expiresAt"] as? Double
+                    self.subscriptionType = oauth["subscriptionType"] as? String ?? ""
+                    self.credentialSource = .keychain
+                    self.isAuthenticated = true
+                    let changed = self.accessToken != previousToken
+                    if changed { Log.info("Credentials reloaded from Keychain") }
+                    completion(true)
+                } else {
+                    Log.warn("No credentials found in file or Keychain")
+                    completion(self.isAuthenticated)
+                }
+            }
         }
-        completion(isAuthenticated)
     }
 
     // MARK: - Credentials file watcher
