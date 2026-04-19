@@ -330,6 +330,13 @@ class UsageManager: ObservableObject {
         }
     }
 
+    @Published var autoReconnect: Bool {
+        didSet {
+            UserDefaults.standard.set(autoReconnect, forKey: UDKey.autoReconnect)
+        }
+    }
+    @Published var isAutoReconnecting = false
+
     @Published var menuBarDisplayMode: MenuBarDisplayMode {
         didSet {
             UserDefaults.standard.set(menuBarDisplayMode.rawValue, forKey: UDKey.menuBarDisplayMode)
@@ -621,6 +628,7 @@ class UsageManager: ObservableObject {
         self.notificationThreshold = ud.object(forKey: UDKey.notificationThreshold) as? Double ?? 20.0
         self.launchAtLogin = ud.bool(forKey: UDKey.launchAtLogin)
         self.compactMode = ud.bool(forKey: UDKey.compactMode)
+        self.autoReconnect = ud.bool(forKey: UDKey.autoReconnect)
         let savedDisplayMode = ud.integer(forKey: UDKey.menuBarDisplayMode)
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: savedDisplayMode) ?? .percentageAndTimer
         self.dailyBudget = ud.double(forKey: UDKey.dailyBudget)
@@ -698,6 +706,13 @@ class UsageManager: ObservableObject {
         auth.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self else { return }
+                // Don't re-enter refresh loop while token is expired — causes rapid flicker
+                if self.auth.tokenExpired {
+                    if self.autoReconnect && !self.isAutoReconnecting {
+                        self.launchAutoReconnect()
+                    }
+                    return
+                }
                 if self.isAuthenticated && !self.isLoading && (self.quotas.isEmpty || self.errorMessage != nil) {
                     self.showSettings = false
                     self.refresh()
@@ -978,6 +993,61 @@ class UsageManager: ObservableObject {
                 self?.activeSessionCost = 0
                 self?.activeSessionMessages = 0
             }
+        }
+    }
+
+    // MARK: - Auto-reconnect
+
+    /// Launches `claude login` in the background, opening the browser OAuth flow.
+    /// The existing credentials file watcher picks up the new token automatically.
+    func launchAutoReconnect() {
+        guard !isAutoReconnecting else { return }
+        isAutoReconnecting = true
+        errorMessage = "Opening browser to sign in..."
+        Log.info("Auto-reconnect: searching for claude binary")
+
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidatePaths = [
+            "/usr/local/bin/claude",
+            "/opt/homebrew/bin/claude",
+            "\(home)/.npm-global/bin/claude",
+            "\(home)/.local/bin/claude",
+            "/usr/bin/claude"
+        ]
+        guard let claudePath = candidatePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
+            Log.warn("claude binary not found — cannot auto-reconnect")
+            isAutoReconnecting = false
+            errorMessage = "Session expired — run `claude auth login` in Terminal"
+            return
+        }
+
+        Log.info("Auto-reconnect: launching \(claudePath) login")
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: claudePath)
+        process.arguments = ["login"]
+        process.terminationHandler = { [weak self] proc in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isAutoReconnecting = false
+                if proc.terminationStatus == 0 {
+                    Log.info("claude login completed — reloading credentials")
+                    self.auth.reloadCredentials { [weak self] success in
+                        guard let self else { return }
+                        if success { self.refresh() }
+                        else { self.errorMessage = "Reconnect failed — run `claude auth login` in Terminal" }
+                    }
+                } else {
+                    Log.warn("claude login exited with status \(proc.terminationStatus)")
+                    self.errorMessage = "Reconnect failed — run `claude auth login` in Terminal"
+                }
+            }
+        }
+        do {
+            try process.run()
+        } catch {
+            Log.error("Failed to launch claude login: \(error)")
+            isAutoReconnecting = false
+            errorMessage = "Session expired — run `claude auth login` in Terminal"
         }
     }
 

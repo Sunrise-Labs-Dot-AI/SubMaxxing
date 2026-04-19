@@ -486,6 +486,27 @@ struct MenuBarView: View {
                         .font(.system(size: 12))
                         .toggleStyle(.switch)
                         .controlSize(.small)
+                    SHDivider()
+                    Toggle("Auto-reconnect when session expires", isOn: $manager.autoReconnect)
+                        .font(.system(size: 12))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                    if manager.autoReconnect {
+                        Text("Automatically opens browser sign-in when your token expires.")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if manager.auth.tokenExpired {
+                        SHButton(
+                            label: manager.isAutoReconnecting ? "Reconnecting..." : "Reconnect now",
+                            icon: manager.isAutoReconnecting ? "arrow.triangle.2.circlepath" : "person.crop.circle.badge.plus",
+                            style: .outline
+                        ) {
+                            manager.launchAutoReconnect()
+                        }
+                        .disabled(manager.isAutoReconnecting)
+                    }
                 }
             }
 
