@@ -81,6 +81,7 @@ struct MenuBarView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
+            .frame(minHeight: 0, maxHeight: .infinity)
             .background(WindowResizer(windowHeight: $manager.windowHeight))
 
             SHDivider()
@@ -3875,6 +3876,9 @@ struct WindowResizer: NSViewRepresentable {
             window.styleMask.insert(.resizable)
             window.minSize = NSSize(width: 300, height: 400)
             window.maxSize = NSSize(width: 600, height: 1400)
+            // Allow window to shrink below content's natural height so scrolling kicks in
+            window.contentView?.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+            window.contentView?.setContentHuggingPriority(.defaultLow, for: .vertical)
             NotificationCenter.default.addObserver(
                 context.coordinator,
                 selector: #selector(Coordinator.windowDidResize(_:)),
