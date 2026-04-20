@@ -266,7 +266,7 @@ struct MenuBarView: View {
             SHCard {
                 VStack(alignment: .leading, spacing: 8) {
                     SHLabel("Authentication")
-                    if manager.isAuthenticated {
+                    if manager.isAuthenticated && !manager.auth.tokenExpired {
                         HStack(spacing: 8) {
                             SHBadge(text: "Connected", color: .green)
                             Spacer()
@@ -276,17 +276,18 @@ struct MenuBarView: View {
                         }
                     } else {
                         VStack(alignment: .leading, spacing: 8) {
-                            SHBadge(text: "Not connected", color: .orange)
-                            Text("Run `claude auth login` in Terminal")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                            SHButton(label: "Retry", icon: "arrow.clockwise", style: .outline) {
-                                manager.loadCredentials()
-                                if manager.isAuthenticated {
-                                    manager.showSettings = false
-                                    manager.refresh()
-                                }
+                            SHBadge(
+                                text: manager.isAuthenticated ? "Session expired" : "Not connected",
+                                color: .orange
+                            )
+                            SHButton(
+                                label: manager.isAutoReconnecting ? "Signing in..." : "Sign In",
+                                icon: manager.isAutoReconnecting ? "arrow.triangle.2.circlepath" : "person.crop.circle.badge.plus",
+                                style: .outline
+                            ) {
+                                manager.launchAutoReconnect()
                             }
+                            .disabled(manager.isAutoReconnecting)
                         }
                     }
                 }
@@ -1750,7 +1751,7 @@ struct MenuBarView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(error)
                         .font(.system(size: 12, weight: .medium))
-                    Text(isAuth ? "Run `claude auth login` in Terminal" :
+                    Text(isAuth ? (manager.isAutoReconnecting ? "Opening browser..." : "Session expired") :
                          isNetwork ? "Check your internet connection" :
                          isRateLimit ? "Will auto-retry shortly" :
                          "Try refreshing or check settings")
@@ -1759,9 +1760,14 @@ struct MenuBarView: View {
                 }
                 Spacer()
                 if isAuth {
-                    SHButton(label: "Settings", icon: "gearshape", style: .outline) {
-                        manager.showSettings = true
+                    SHButton(
+                        label: manager.isAutoReconnecting ? "Signing in..." : "Sign In",
+                        icon: manager.isAutoReconnecting ? "arrow.triangle.2.circlepath" : "person.crop.circle.badge.plus",
+                        style: .outline
+                    ) {
+                        manager.launchAutoReconnect()
                     }
+                    .disabled(manager.isAutoReconnecting)
                 } else {
                     SHButton(label: "Retry", icon: "arrow.clockwise", style: .outline) {
                         manager.refresh()
