@@ -336,6 +336,7 @@ class UsageManager: ObservableObject {
         }
     }
     @Published var isAutoReconnecting = false
+    @Published var terminalSession: TerminalSession? = nil
 
     @Published var menuBarDisplayMode: MenuBarDisplayMode {
         didSet {
@@ -1001,13 +1002,14 @@ class UsageManager: ObservableObject {
 
     // MARK: - Auto-reconnect
 
-    /// Launches `claude login` in the background, opening the browser OAuth flow.
-    /// The existing credentials file watcher picks up the new token automatically.
+    /// Runs `claude auth login` in an embedded PTY inside the popover.
+    /// The browser OAuth flow still opens automatically. Once credentials appear
+    /// in Keychain, the polling loop picks them up and resumes normal operation.
     func launchAutoReconnect() {
         guard !isAutoReconnecting else { return }
         isAutoReconnecting = true
-        errorMessage = "Opening Terminal to sign in..."
-        Log.info("Auto-reconnect: opening Terminal with claude auth login")
+        errorMessage = nil
+        Log.info("Auto-reconnect: starting embedded terminal session")
 
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let candidatePaths = [
@@ -1024,32 +1026,17 @@ class UsageManager: ObservableObject {
             return
         }
 
-        // Run in Terminal so claude auth login has a proper TTY and can open the browser
-        let script = """
-        tell application "Terminal"
-            activate
-            do script "\(claudePath) auth login"
-        end tell
-        """
-        var appleScriptError: NSDictionary?
-        guard let appleScript = NSAppleScript(source: script) else {
-            isAutoReconnecting = false
-            errorMessage = "Session expired — run `claude auth login` in Terminal"
-            return
-        }
-        appleScript.executeAndReturnError(&appleScriptError)
-
-        if let err = appleScriptError {
-            Log.error("AppleScript error: \(err)")
-            isAutoReconnecting = false
-            errorMessage = "Session expired — run `claude auth login` in Terminal"
-            return
-        }
-
-        Log.info("Terminal opened with claude auth login — polling for new credentials every 5s")
-        // claude auth login writes credentials to Keychain, not back to the file,
-        // so the file watcher will NOT fire. Poll reloadCredentials() instead.
+        let session = TerminalSession()
+        terminalSession = session
+        session.start(executablePath: claudePath, args: ["auth", "login"])
+        Log.info("Embedded terminal started — polling Keychain every 5s for new credentials")
         startReconnectPolling()
+    }
+
+    private func finishReconnect() {
+        terminalSession?.stop()
+        terminalSession = nil
+        isAutoReconnecting = false
     }
 
     private func startReconnectPolling() {
@@ -1066,13 +1053,13 @@ class UsageManager: ObservableObject {
                         Log.info("Auto-reconnect: fresh credentials detected after \(elapsed)s, resuming")
                         self.reconnectPollTimer?.cancel()
                         self.reconnectPollTimer = nil
-                        self.isAutoReconnecting = false
+                        self.finishReconnect()
                         self.refresh()
                     } else if elapsed >= 120 {
                         Log.warn("Auto-reconnect: timed out (120s) waiting for credentials")
                         self.reconnectPollTimer?.cancel()
                         self.reconnectPollTimer = nil
-                        self.isAutoReconnecting = false
+                        self.finishReconnect()
                         self.errorMessage = "Session expired — run `claude auth login` in Terminal"
                     }
                 }
