@@ -97,6 +97,7 @@ struct MenuBarView: View {
         .animation(.easeOut(duration: 0.15), value: manager.showSettings)
         .onAppear {
             manager.refreshIfStale()
+            manager.refreshStatsIfStale()
         }
     }
 

@@ -653,7 +653,7 @@ class UsageManager: ObservableObject {
     private static let maxRetries = 5
     private static let retryBaseDelay: Double = 5
     private static let rateLimitRetryBaseDelay: Double = 5
-    private static let activeSessionCheckInterval: TimeInterval = 15
+    private static let activeSessionCheckInterval: TimeInterval = 60
     private static let activeSessionThreshold: TimeInterval = 60
     private static let hysteresisStandard: Double = 5
     private static let hysteresisCustom: Double = 10
@@ -796,7 +796,6 @@ class UsageManager: ObservableObject {
         setupActiveSessionDetection()
         setupWakeObserver()
         setupTokenHealthTimer()
-        disableAppNap()
         isGitAvailable = GitAnalyzer.isGitAvailable()
 
         if notificationsEnabled {
@@ -815,6 +814,19 @@ class UsageManager: ObservableObject {
     }
 
     // MARK: - Session stats (single-pass optimization)
+
+    /// Tracks the last successful stats refresh so refreshStatsIfStale can skip
+    /// scanning JSONL files when the user re-opens the popover seconds apart.
+    private var lastStatsRefresh: Date?
+
+    /// Run the stats scan only when the data on screen would actually be out of date.
+    /// Called on popover appear so the heavy JSONL scan stays off the auto-refresh
+    /// timer (which used to fan it out every 2 min, even with the popover closed).
+    func refreshStatsIfStale() {
+        let staleThreshold: TimeInterval = 120
+        if let last = lastStatsRefresh, Date().timeIntervalSince(last) < staleThreshold { return }
+        refreshStats()
+    }
 
     func refreshStats() {
         guard !isLoadingStats else { return }
@@ -842,6 +854,7 @@ class UsageManager: ObservableObject {
                 self?.monthStats = month
                 self?.sessionHistory = result.recentSessions
                 self?.isLoadingStats = false
+                self?.lastStatsRefresh = Date()
                 Log.info("Stats: today=$\(String(format: "%.2f", today.totalCost)) week=$\(String(format: "%.2f", week.totalCost)) month=$\(String(format: "%.2f", month.totalCost)) projects=\(month.byProject.count) sessions=\(result.recentSessions.count)")
             }
         }
@@ -1353,7 +1366,8 @@ class UsageManager: ObservableObject {
                     self.finishLoading()
                     self.consecutive429Count = 0
                     self.lastRefresh = Date()
-                    self.refreshStats()
+                    // Stats refresh is deferred to popover-open (refreshStatsIfStale)
+                    // so the 30-day JSONL scan doesn't run on every background fetch.
                     self.checkNotifications()
                     self.checkResetNotifications()
                     self.checkCustomAlerts()
@@ -1482,9 +1496,24 @@ class UsageManager: ObservableObject {
 
     // MARK: - Countdown
 
+    /// Tracks the active interval so updateCountdown can detect when the
+    /// timer needs to be re-armed at a different cadence.
+    private var currentCountdownInterval: TimeInterval = 0
+
+    /// 1s ticks only when the menubar shows seconds (live-timer mode AND remaining ≤ 1h).
+    /// Above 1h the displayed string only has minute precision, so 60s is enough.
+    /// Modes that don't show the timer in the menubar fall back to 60s — `timeUntilReset`
+    /// is only consumed inside the popover, which doesn't need finer granularity.
+    private func desiredCountdownInterval() -> TimeInterval {
+        guard menuBarDisplayMode.showsLiveTimer else { return 60 }
+        guard let reset = nextResetDate else { return 60 }
+        return reset.timeIntervalSinceNow <= 3600 ? 1 : 60
+    }
+
     private func setupCountdownTimer() {
         countdownTimer?.cancel()
-        let interval: TimeInterval = menuBarDisplayMode.showsLiveTimer ? 1 : 30
+        let interval = desiredCountdownInterval()
+        currentCountdownInterval = interval
         countdownTimer = Timer.publish(every: interval, on: .main, in: .common)
             .autoconnect()
             .sink { [weak self] _ in
@@ -1507,6 +1536,11 @@ class UsageManager: ObservableObject {
                 }
             }
             return
+        }
+        // Re-arm the timer if we've crossed the 1h threshold (or back) so we don't
+        // keep ticking at 1Hz for hours, or stay at 60s through the final minute.
+        if desiredCountdownInterval() != currentCountdownInterval {
+            setupCountdownTimer()
         }
         let days = Int(remaining) / 86400
         let hours = (Int(remaining) % 86400) / 3600
@@ -1550,7 +1584,6 @@ class UsageManager: ObservableObject {
         .autoconnect()
         .sink { [weak self] _ in
             self?.autoRefresh()
-            self?.refreshStats()
         }
     }
 
@@ -1576,16 +1609,7 @@ class UsageManager: ObservableObject {
             }
     }
 
-    // MARK: - Wake & App Nap
-
-    private var appNapActivity: NSObjectProtocol?
-
-    private func disableAppNap() {
-        appNapActivity = ProcessInfo.processInfo.beginActivity(
-            options: .userInitiatedAllowingIdleSystemSleep,
-            reason: "Keep refresh timers alive"
-        )
-    }
+    // MARK: - Wake observer
 
     private func setupWakeObserver() {
         NSWorkspace.shared.notificationCenter.addObserver(
