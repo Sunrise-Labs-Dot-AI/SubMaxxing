@@ -122,12 +122,24 @@ private struct OAuthUsageResponse: Decodable {
     let sevenDay: QuotaData?
     let sevenDaySonnet: QuotaData?
     let sevenDayOpus: QuotaData?
+    let sevenDayOmelette: QuotaData?   // Claude Design
+    let sevenDayCowork: QuotaData?
+    let sevenDayOauthApps: QuotaData?
+    let iguanaNecktie: QuotaData?
+    let omelettPromotional: QuotaData?
+    let extraUsage: ExtraUsageData?
 
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
         case sevenDay = "seven_day"
         case sevenDaySonnet = "seven_day_sonnet"
         case sevenDayOpus = "seven_day_opus"
+        case sevenDayOmelette = "seven_day_omelette"
+        case sevenDayCowork = "seven_day_cowork"
+        case sevenDayOauthApps = "seven_day_oauth_apps"
+        case iguanaNecktie = "iguana_necktie"
+        case omelettPromotional = "omelette_promotional"
+        case extraUsage = "extra_usage"
     }
 }
 
@@ -138,6 +150,31 @@ private struct QuotaData: Decodable {
     enum CodingKeys: String, CodingKey {
         case utilization
         case resetsAt = "resets_at"
+    }
+}
+
+struct ExtraUsageData: Decodable {
+    let isEnabled: Bool
+    let monthlyLimit: Double?   // nil = unlimited
+    let usedCredits: Double?    // in cents
+    let currency: String?
+
+    enum CodingKeys: String, CodingKey {
+        case isEnabled = "is_enabled"
+        case monthlyLimit = "monthly_limit"
+        case usedCredits = "used_credits"
+        case currency
+    }
+
+    /// CA$230.40 formatted from 23040 cents
+    var usedFormatted: String {
+        guard let cents = usedCredits else { return "$0.00" }
+        return String(format: "$%.2f", cents / 100.0)
+    }
+
+    var limitFormatted: String {
+        guard let cents = monthlyLimit else { return "Unlimited" }
+        return String(format: "$%.2f", cents / 100.0)
     }
 }
 
@@ -201,6 +238,7 @@ class UsageManager: ObservableObject {
     // MARK: - Données d'utilisation
 
     @Published var quotas: [UsageQuota] = []
+    @Published var extraUsage: ExtraUsageData?
     @Published var isLoading = false
     private var loadingStartedAt: Date?
     private var currentFetchTask: URLSessionDataTask?
@@ -635,6 +673,8 @@ class UsageManager: ObservableObject {
         self.launchAtLogin = ud.bool(forKey: UDKey.launchAtLogin)
         self.compactMode = ud.bool(forKey: UDKey.compactMode)
         self.autoReconnect = ud.bool(forKey: UDKey.autoReconnect)
+        let savedHeight = ud.double(forKey: UDKey.windowHeight)
+        self.windowHeight = savedHeight > 0 ? savedHeight : 650
         let savedDisplayMode = ud.integer(forKey: UDKey.menuBarDisplayMode)
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: savedDisplayMode) ?? .percentageAndTimer
         self.dailyBudget = ud.double(forKey: UDKey.dailyBudget)
@@ -1279,7 +1319,8 @@ class UsageManager: ObservableObject {
                         return
                     }
                     if let raw = String(data: data, encoding: .utf8) {
-                        Log.info("Response: \(raw.prefix(500))")
+                        Log.info("Response: \(raw)")
+                        self.lastRawAPIResponse = raw
                     }
                     self.previousQuotaUtilizations = Dictionary(
                         uniqueKeysWithValues: self.quotas.map { ($0.label, $0.utilization) }
@@ -1391,10 +1432,15 @@ class UsageManager: ObservableObject {
 
     private func applyUsageResponse(_ response: OAuthUsageResponse) {
         let quotaDefs: [(quota: QuotaData?, label: String, icon: String)] = [
-            (response.fiveHour, "Session (5h)", "bolt.fill"),
-            (response.sevenDay, "Weekly (all models)", "calendar"),
-            (response.sevenDaySonnet, "Sonnet (7d)", "sparkle"),
-            (response.sevenDayOpus, "Opus (7d)", "star.fill"),
+            (response.fiveHour,          "Session (5h)",        "bolt.fill"),
+            (response.sevenDay,          "Weekly (all)",        "calendar"),
+            (response.sevenDaySonnet,    "Sonnet (7d)",         "sparkle"),
+            (response.sevenDayOpus,      "Opus (7d)",           "star.fill"),
+            (response.sevenDayOmelette,  "Claude Design (7d)",  "paintbrush.fill"),
+            (response.sevenDayCowork,    "Cowork (7d)",         "person.2.fill"),
+            (response.sevenDayOauthApps, "OAuth Apps (7d)",     "app.connected.to.app.below.fill"),
+            (response.iguanaNecktie,     "Extended (7d)",       "sparkles"),
+            (response.omelettPromotional,"Design Promo (7d)",   "gift.fill"),
         ]
 
         quotas = quotaDefs.compactMap { def in
@@ -1406,7 +1452,8 @@ class UsageManager: ObservableObject {
                 resetsAt: q.resetsAt.flatMap(Formatters.parseISO)
             )
         }
-        Log.info("Parsed \(quotas.count) quotas")
+        extraUsage = response.extraUsage
+        Log.info("Parsed \(quotas.count) quotas, extraUsage=\(response.extraUsage != nil)")
     }
 
     // MARK: - Countdown
@@ -1767,6 +1814,13 @@ class UsageManager: ObservableObject {
 
     @Published var csvExportSuccess: Bool?
     @Published var jsonExportSuccess: Bool?
+    @Published var lastRawAPIResponse: String?
+
+    // MARK: - Window height preference
+
+    @Published var windowHeight: Double {
+        didSet { UserDefaults.standard.set(windowHeight, forKey: UDKey.windowHeight) }
+    }
 
     func exportJSON() {
         let panel = NSSavePanel()
