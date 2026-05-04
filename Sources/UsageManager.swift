@@ -712,7 +712,7 @@ class UsageManager: ObservableObject {
         auth.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 guard let self else { return }
-                // Don't re-enter refresh loop while token is expired — causes rapid flicker
+                // tokenExpired guard prevents a flicker loop: fetchUsage -> reloadCredentials -> auth republishes -> sink fires again.
                 if self.auth.tokenExpired {
                     if self.autoReconnect && !self.isAutoReconnecting && !self.reconnectExhausted {
                         self.launchAutoReconnect()
