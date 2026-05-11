@@ -730,31 +730,59 @@ struct MenuBarView: View {
                 )
             }
 
-            // Burn rate prediction
-            if let prediction = manager.burnRatePrediction {
-                HStack(spacing: 6) {
-                    Image(systemName: "gauge.with.needle")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.orange)
-                    Text("At this rate, limit in")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Text(prediction)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.orange)
+            // Burn rate predictions (session + weekly + fallback) — personal-fork additions
+            VStack(spacing: 4) {
+                if let prediction = manager.burnRatePrediction {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gauge.with.needle")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.orange)
+                        Text("Session limit in")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(prediction)
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.orange)
+                    }
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                        .strokeBorder(Color.orange.opacity(0.15), lineWidth: 1)
-                        .background(
-                            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                                .fill(Color.orange.opacity(0.05))
-                        )
-                )
+                if let weekly = manager.weeklyBurnRatePrediction {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar.badge.exclamationmark")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.orange)
+                        Text("Weekly limit in")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(weekly)
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.orange)
+                    }
+                }
+                if let reason = manager.burnRateUnavailableReason {
+                    HStack(spacing: 6) {
+                        Image(systemName: "gauge.with.needle")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.secondary)
+                        Text(reason)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
+                }
             }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                    .strokeBorder(Color.orange.opacity(0.15), lineWidth: 1)
+                    .background(
+                        RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                            .fill(Color.orange.opacity(0.05))
+                    )
+            )
 
             // Monthly cost forecast
             if let forecast = manager.monthlyForecast {
@@ -900,16 +928,41 @@ struct MenuBarView: View {
                 .accessibilityLabel("\(quota.label), \(Int(quota.utilization)) percent used")
             }
 
-            if let prediction = manager.burnRatePrediction {
+            // Burn-rate block (session + weekly + fallback) — personal-fork additions
+            if manager.burnRatePrediction != nil
+                || manager.weeklyBurnRatePrediction != nil
+                || manager.burnRateUnavailableReason != nil {
                 SHDivider().padding(.vertical, 2)
-                HStack {
-                    Text("Limit in")
-                        .font(.system(size: 11))
-                        .foregroundColor(.orange)
-                    Spacer()
-                    Text(prediction)
-                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.orange)
+                if let prediction = manager.burnRatePrediction {
+                    HStack {
+                        Text("Session limit in")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                        Spacer()
+                        Text(prediction)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.orange)
+                    }
+                }
+                if let weekly = manager.weeklyBurnRatePrediction {
+                    HStack {
+                        Text("Weekly limit in")
+                            .font(.system(size: 11))
+                            .foregroundColor(.orange)
+                        Spacer()
+                        Text(weekly)
+                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.orange)
+                    }
+                }
+                if let reason = manager.burnRateUnavailableReason {
+                    HStack {
+                        Text(reason)
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 0)
+                    }
                 }
             }
 

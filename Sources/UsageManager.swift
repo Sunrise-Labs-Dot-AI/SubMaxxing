@@ -627,6 +627,51 @@ class UsageManager: ObservableObject {
         return "~\(minutes)m"
     }
 
+    // MARK: - Weekly burn rate prediction (personal-fork addition)
+
+    /// Projects when the weekly (7-day) quota will be exhausted at the current rate.
+    /// Mirrors the session-window logic but uses a 7-day window and a 30-minute
+    /// minimum-data guard (the weekly window is much longer, so short-burst noise
+    /// would otherwise dominate).
+    var weeklyBurnRatePrediction: String? {
+        guard let q = weeklyQuota,
+              let resetsAt = q.resetsAt,
+              q.utilization > 2 else { return nil }
+
+        let windowDuration: TimeInterval = 7 * 24 * 3600
+        let timeRemaining = resetsAt.timeIntervalSinceNow
+        let timeElapsed = windowDuration - timeRemaining
+
+        guard timeElapsed > 1800 else { return nil } // Need 30 min of data for weekly
+
+        let ratePerSecond = q.utilization / timeElapsed
+        guard ratePerSecond > 0 else { return nil }
+
+        let remainingPercent = 100 - q.utilization
+        let secondsToLimit = remainingPercent / ratePerSecond
+
+        if secondsToLimit > 30 * 24 * 3600 { return nil } // > 30 days, not useful
+
+        let days = Int(secondsToLimit) / (24 * 3600)
+        let hours = (Int(secondsToLimit) % (24 * 3600)) / 3600
+        let minutes = (Int(secondsToLimit) % 3600) / 60
+
+        if days > 0 {
+            return "~\(days)d \(hours)h"
+        }
+        if hours > 0 {
+            return "~\(hours)h \(minutes)m"
+        }
+        return "~\(minutes)m"
+    }
+
+    /// Returned only when BOTH burn-rate predictions are unavailable, so the UI can
+    /// always explain what's happening instead of silently hiding the burn-rate row.
+    var burnRateUnavailableReason: String? {
+        guard burnRatePrediction == nil && weeklyBurnRatePrediction == nil else { return nil }
+        return "Need a few minutes of active usage in the current window to project a limit."
+    }
+
     // MARK: - Monthly cost forecast
 
     var monthlyForecast: (projected: Double, daysRemaining: Int)? {
