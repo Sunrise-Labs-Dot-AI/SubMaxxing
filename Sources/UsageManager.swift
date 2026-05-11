@@ -670,6 +670,17 @@ class UsageManager: ObservableObject {
         )
     }
 
+    /// Per-surface burn rate for Claude Design (Omelette). 7-day window, same thresholds
+    /// as the weekly aggregate but scoped to the Design quota row.
+    var designLimitProjection: LimitProjection {
+        projectLimit(
+            for: quotas.first(where: { $0.label.contains("Claude Design") }),
+            windowDuration: 7 * 24 * 3600,
+            minElapsed: 1800,
+            minUtilization: 2
+        )
+    }
+
     // Legacy String? accessors derived from the enum, kept for any reference elsewhere.
     var burnRatePrediction: String? {
         if case .approaching(let label) = sessionLimitProjection { return label }
@@ -681,11 +692,13 @@ class UsageManager: ObservableObject {
         return nil
     }
 
-    /// Only fires when BOTH windows are `.insufficientData`. If either is `.safe`
-    /// or `.approaching`, the UI has something concrete to render instead.
+    /// Only fires when ALL tracked windows (session, weekly, design) are `.insufficientData`.
+    /// If any window has something concrete (`.safe` or `.approaching`), the UI shows it
+    /// and the fallback message stays hidden.
     var burnRateUnavailableReason: String? {
         if case .insufficientData = sessionLimitProjection,
-           case .insufficientData = weeklyLimitProjection {
+           case .insufficientData = weeklyLimitProjection,
+           case .insufficientData = designLimitProjection {
             return "Need a few minutes of active usage in the current window to project a limit."
         }
         return nil

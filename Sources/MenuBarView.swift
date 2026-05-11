@@ -738,8 +738,10 @@ struct MenuBarView: View {
             let containerTint: Color = {
                 if case .approaching = manager.sessionLimitProjection { return .orange }
                 if case .approaching = manager.weeklyLimitProjection { return .orange }
+                if case .approaching = manager.designLimitProjection { return .orange }
                 if case .safe = manager.sessionLimitProjection { return .green }
                 if case .safe = manager.weeklyLimitProjection { return .green }
+                if case .safe = manager.designLimitProjection { return .green }
                 return .secondary
             }()
             VStack(spacing: 4) {
@@ -753,6 +755,12 @@ struct MenuBarView: View {
                     label: "Weekly",
                     icon: "calendar.badge.exclamationmark",
                     projection: manager.weeklyLimitProjection,
+                    compact: false
+                )
+                BurnRateProjectionRow(
+                    label: "Claude Design",
+                    icon: "paintbrush.fill",
+                    projection: manager.designLimitProjection,
                     compact: false
                 )
                 if let reason = manager.burnRateUnavailableReason {
@@ -928,7 +936,8 @@ struct MenuBarView: View {
             // unless BOTH windows are insufficient, in which case we show the explanatory reason.
             let hasAnyProjection: Bool = {
                 if case .insufficientData = manager.sessionLimitProjection,
-                   case .insufficientData = manager.weeklyLimitProjection {
+                   case .insufficientData = manager.weeklyLimitProjection,
+                   case .insufficientData = manager.designLimitProjection {
                     return false
                 }
                 return true
@@ -945,6 +954,12 @@ struct MenuBarView: View {
                     label: "Weekly",
                     icon: "calendar.badge.exclamationmark",
                     projection: manager.weeklyLimitProjection,
+                    compact: true
+                )
+                BurnRateProjectionRow(
+                    label: "Claude Design",
+                    icon: "paintbrush.fill",
+                    projection: manager.designLimitProjection,
                     compact: true
                 )
                 if let reason = manager.burnRateUnavailableReason {
@@ -1028,6 +1043,19 @@ struct MenuBarView: View {
                         sub: "\(manager.monthStats.totalMessages) msgs · \(manager.monthStats.sessionCount) sessions"
                     )
                 }
+
+                // Personal-fork clarification: the dollar figures above are API-equivalent,
+                // not money paid. Subscription users pay a flat fee regardless.
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.7))
+                    Text("API-equivalent cost — actual billing is your subscription")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 2)
 
                 // Daily budget progress
                 if let budgetUtil = manager.budgetUtilization {
