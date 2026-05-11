@@ -730,36 +730,31 @@ struct MenuBarView: View {
                 )
             }
 
-            // Burn rate predictions (session + weekly + fallback) — personal-fork additions
+            // Burn rate trajectory (session + weekly + fallback) — personal-fork additions.
+            // Tint the container by the "worst" state so the box reads at a glance:
+            //   approaching => orange (any approaching wins)
+            //   safe        => green
+            //   insufficient => gray (rendered only when both windows are insufficient)
+            let containerTint: Color = {
+                if case .approaching = manager.sessionLimitProjection { return .orange }
+                if case .approaching = manager.weeklyLimitProjection { return .orange }
+                if case .safe = manager.sessionLimitProjection { return .green }
+                if case .safe = manager.weeklyLimitProjection { return .green }
+                return .secondary
+            }()
             VStack(spacing: 4) {
-                if let prediction = manager.burnRatePrediction {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gauge.with.needle")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.orange)
-                        Text("Session limit in")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(prediction)
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.orange)
-                    }
-                }
-                if let weekly = manager.weeklyBurnRatePrediction {
-                    HStack(spacing: 6) {
-                        Image(systemName: "calendar.badge.exclamationmark")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.orange)
-                        Text("Weekly limit in")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        Text(weekly)
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.orange)
-                    }
-                }
+                BurnRateProjectionRow(
+                    label: "Session",
+                    icon: "gauge.with.needle",
+                    projection: manager.sessionLimitProjection,
+                    compact: false
+                )
+                BurnRateProjectionRow(
+                    label: "Weekly",
+                    icon: "calendar.badge.exclamationmark",
+                    projection: manager.weeklyLimitProjection,
+                    compact: false
+                )
                 if let reason = manager.burnRateUnavailableReason {
                     HStack(spacing: 6) {
                         Image(systemName: "gauge.with.needle")
@@ -777,10 +772,10 @@ struct MenuBarView: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                    .strokeBorder(Color.orange.opacity(0.15), lineWidth: 1)
+                    .strokeBorder(containerTint.opacity(0.15), lineWidth: 1)
                     .background(
                         RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                            .fill(Color.orange.opacity(0.05))
+                            .fill(containerTint.opacity(0.05))
                     )
             )
 
@@ -928,33 +923,30 @@ struct MenuBarView: View {
                 .accessibilityLabel("\(quota.label), \(Int(quota.utilization)) percent used")
             }
 
-            // Burn-rate block (session + weekly + fallback) — personal-fork additions
-            if manager.burnRatePrediction != nil
-                || manager.weeklyBurnRatePrediction != nil
-                || manager.burnRateUnavailableReason != nil {
+            // Burn-rate block (session + weekly + fallback) — personal-fork additions.
+            // Shows the row when projection is .approaching or .safe; hides for .insufficientData
+            // unless BOTH windows are insufficient, in which case we show the explanatory reason.
+            let hasAnyProjection: Bool = {
+                if case .insufficientData = manager.sessionLimitProjection,
+                   case .insufficientData = manager.weeklyLimitProjection {
+                    return false
+                }
+                return true
+            }()
+            if hasAnyProjection || manager.burnRateUnavailableReason != nil {
                 SHDivider().padding(.vertical, 2)
-                if let prediction = manager.burnRatePrediction {
-                    HStack {
-                        Text("Session limit in")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                        Spacer()
-                        Text(prediction)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.orange)
-                    }
-                }
-                if let weekly = manager.weeklyBurnRatePrediction {
-                    HStack {
-                        Text("Weekly limit in")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                        Spacer()
-                        Text(weekly)
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                            .foregroundColor(.orange)
-                    }
-                }
+                BurnRateProjectionRow(
+                    label: "Session",
+                    icon: "gauge.with.needle",
+                    projection: manager.sessionLimitProjection,
+                    compact: true
+                )
+                BurnRateProjectionRow(
+                    label: "Weekly",
+                    icon: "calendar.badge.exclamationmark",
+                    projection: manager.weeklyLimitProjection,
+                    compact: true
+                )
                 if let reason = manager.burnRateUnavailableReason {
                     HStack {
                         Text(reason)
@@ -3677,6 +3669,54 @@ struct SHDivider: View {
         Rectangle()
             .fill(Theme.border)
             .frame(height: 1)
+    }
+}
+
+// MARK: Burn-rate projection row (personal-fork addition)
+
+/// Renders one window's projected trajectory toward its limit. Three visual states:
+/// - `.approaching`: orange, shows time-to-limit
+/// - `.safe`: green, "won't hit limit before reset"
+/// - `.insufficientData`: nothing (the parent container handles the fallback message)
+struct BurnRateProjectionRow: View {
+    let label: String          // "Session" / "Weekly"
+    let icon: String           // SF Symbol name for the approaching state
+    let projection: UsageManager.LimitProjection
+    let compact: Bool          // true => smaller fonts, no leading icon (used in tight rows)
+
+    var body: some View {
+        switch projection {
+        case .approaching(let value):
+            HStack(spacing: 6) {
+                if !compact {
+                    Image(systemName: icon)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.orange)
+                }
+                Text("\(label) limit in")
+                    .font(.system(size: 11))
+                    .foregroundColor(compact ? .orange : .secondary)
+                Spacer()
+                Text(value)
+                    .font(.system(size: compact ? 11 : 12, weight: .semibold, design: .monospaced))
+                    .foregroundColor(.orange)
+            }
+        case .safe:
+            HStack(spacing: 6) {
+                if !compact {
+                    Image(systemName: "checkmark.circle")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.green)
+                }
+                Text("\(label) on track — won't hit limit before reset")
+                    .font(.system(size: 11))
+                    .foregroundColor(.green)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+        case .insufficientData:
+            EmptyView()
+        }
     }
 }
 

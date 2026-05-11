@@ -597,79 +597,98 @@ class UsageManager: ObservableObject {
         return ""
     }
 
-    // MARK: - Burn rate prediction
+    // MARK: - Burn rate prediction (personal-fork refactor)
 
-    var burnRatePrediction: String? {
-        guard let sessionQuota = quotas.first(where: { $0.label.contains("Session") }),
-              let resetsAt = sessionQuota.resetsAt,
-              sessionQuota.utilization > 5 else { return nil }
-
-        let windowDuration: TimeInterval = 5 * 3600 // 5-hour window
-        let timeRemaining = resetsAt.timeIntervalSinceNow
-        let timeElapsed = windowDuration - timeRemaining
-
-        guard timeElapsed > 300 else { return nil } // Need at least 5 min of data
-
-        let ratePerSecond = sessionQuota.utilization / timeElapsed
-        guard ratePerSecond > 0 else { return nil }
-
-        let remainingPercent = 100 - sessionQuota.utilization
-        let secondsToLimit = remainingPercent / ratePerSecond
-
-        if secondsToLimit > 24 * 3600 { return nil } // More than a day, not useful
-
-        let hours = Int(secondsToLimit) / 3600
-        let minutes = (Int(secondsToLimit) % 3600) / 60
-
-        if hours > 0 {
-            return "~\(hours)h \(minutes)m"
-        }
-        return "~\(minutes)m"
+    /// Three-state classification of a quota's trajectory toward its limit.
+    /// - `.approaching` — at current rate, the limit hits before the window resets
+    /// - `.safe` — at current rate, the window resets first; no real pending wall
+    /// - `.insufficientData` — not enough usage yet to project meaningfully
+    enum LimitProjection {
+        case approaching(label: String)
+        case safe
+        case insufficientData
     }
 
-    // MARK: - Weekly burn rate prediction (personal-fork addition)
-
-    /// Projects when the weekly (7-day) quota will be exhausted at the current rate.
-    /// Mirrors the session-window logic but uses a 7-day window and a 30-minute
-    /// minimum-data guard (the weekly window is much longer, so short-burst noise
-    /// would otherwise dominate).
-    var weeklyBurnRatePrediction: String? {
-        guard let q = weeklyQuota,
+    /// Shared projection routine. Linear extrapolation from window-start; same caveats
+    /// as the original (front-loaded usage is over-predicted, etc.). The key correctness
+    /// fix vs. upstream: if the projected time-to-limit exceeds the time remaining in
+    /// the window, classify as `.safe` rather than reporting a misleading future limit.
+    private func projectLimit(
+        for quota: UsageQuota?,
+        windowDuration: TimeInterval,
+        minElapsed: TimeInterval,
+        minUtilization: Double
+    ) -> LimitProjection {
+        guard let q = quota,
               let resetsAt = q.resetsAt,
-              q.utilization > 2 else { return nil }
+              q.utilization > minUtilization else { return .insufficientData }
 
-        let windowDuration: TimeInterval = 7 * 24 * 3600
         let timeRemaining = resetsAt.timeIntervalSinceNow
         let timeElapsed = windowDuration - timeRemaining
 
-        guard timeElapsed > 1800 else { return nil } // Need 30 min of data for weekly
+        guard timeElapsed > minElapsed else { return .insufficientData }
 
         let ratePerSecond = q.utilization / timeElapsed
-        guard ratePerSecond > 0 else { return nil }
+        guard ratePerSecond > 0 else { return .insufficientData }
 
         let remainingPercent = 100 - q.utilization
         let secondsToLimit = remainingPercent / ratePerSecond
 
-        if secondsToLimit > 30 * 24 * 3600 { return nil } // > 30 days, not useful
+        // If we'd hit the wall later than the window resets, the wall is fictional.
+        if secondsToLimit > timeRemaining { return .safe }
 
         let days = Int(secondsToLimit) / (24 * 3600)
         let hours = (Int(secondsToLimit) % (24 * 3600)) / 3600
         let minutes = (Int(secondsToLimit) % 3600) / 60
 
+        let label: String
         if days > 0 {
-            return "~\(days)d \(hours)h"
+            label = "~\(days)d \(hours)h"
+        } else if hours > 0 {
+            label = "~\(hours)h \(minutes)m"
+        } else {
+            label = "~\(minutes)m"
         }
-        if hours > 0 {
-            return "~\(hours)h \(minutes)m"
-        }
-        return "~\(minutes)m"
+        return .approaching(label: label)
     }
 
-    /// Returned only when BOTH burn-rate predictions are unavailable, so the UI can
-    /// always explain what's happening instead of silently hiding the burn-rate row.
+    var sessionLimitProjection: LimitProjection {
+        projectLimit(
+            for: quotas.first(where: { $0.label.contains("Session") }),
+            windowDuration: 5 * 3600,
+            minElapsed: 300,
+            minUtilization: 5
+        )
+    }
+
+    var weeklyLimitProjection: LimitProjection {
+        projectLimit(
+            for: weeklyQuota,
+            windowDuration: 7 * 24 * 3600,
+            minElapsed: 1800,
+            minUtilization: 2
+        )
+    }
+
+    // Legacy String? accessors derived from the enum, kept for any reference elsewhere.
+    var burnRatePrediction: String? {
+        if case .approaching(let label) = sessionLimitProjection { return label }
+        return nil
+    }
+
+    var weeklyBurnRatePrediction: String? {
+        if case .approaching(let label) = weeklyLimitProjection { return label }
+        return nil
+    }
+
+    /// Only fires when BOTH windows are `.insufficientData`. If either is `.safe`
+    /// or `.approaching`, the UI has something concrete to render instead.
     var burnRateUnavailableReason: String? {
-        guard burnRatePrediction == nil && weeklyBurnRatePrediction == nil else { return nil }
-        return "Need a few minutes of active usage in the current window to project a limit."
+        if case .insufficientData = sessionLimitProjection,
+           case .insufficientData = weeklyLimitProjection {
+            return "Need a few minutes of active usage in the current window to project a limit."
+        }
+        return nil
     }
 
     // MARK: - Monthly cost forecast
