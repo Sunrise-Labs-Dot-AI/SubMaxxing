@@ -55,39 +55,36 @@ struct MenuBarView: View {
                     .padding(.top, 10)
             }
 
-            // Content
-            ScrollView(.vertical, showsIndicators: false) {
-                Group {
-                    if !manager.isAuthenticated || manager.showSettings {
-                        settingsView
-                    } else if manager.selectedTab == .codex {
-                        codexUsageView
-                    } else if manager.selectedTab == .analytics {
-                        statsView
-                    } else if manager.selectedTab == .timeline {
-                        timelineView
-                    } else if manager.selectedTab == .roi {
-                        roiView
-                    } else if manager.selectedTab == .extensions {
-                        extensionsView
-                    } else if manager.isLoading && manager.lastRefresh == nil {
-                        loadingView
-                    } else if let error = manager.errorMessage {
-                        errorView(error)
-                    } else if !manager.quotas.isEmpty {
-                        if manager.compactMode {
-                            compactUsageView
-                        } else {
-                            usageView
-                        }
-                    } else {
-                        emptyView
-                    }
+            // Content — personal-fork side-by-side layout when both providers are
+            // visible. Settings page remains full-width so the form has room.
+            if !manager.isAuthenticated || manager.showSettings {
+                ScrollView(.vertical, showsIndicators: false) {
+                    settingsView
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .frame(minHeight: 0, maxHeight: .infinity)
+            } else {
+                HStack(spacing: 0) {
+                    // Left column: Claude (the existing tabbed interface)
+                    ScrollView(.vertical, showsIndicators: false) {
+                        claudeContent
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+
+                    SHVerticalDivider()
+
+                    // Right column: Codex (always visible, single Usage view)
+                    ScrollView(.vertical, showsIndicators: false) {
+                        codexUsageView
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+                }
             }
-            .frame(minHeight: 0, maxHeight: .infinity)
 
             ResizeHandle(height: $manager.windowHeight, minHeight: 400, maxHeight: 1400)
 
@@ -98,13 +95,54 @@ struct MenuBarView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
         }
-        .frame(width: manager.compactMode && !manager.showSettings && manager.selectedTab == .usage ? 300 : 400,
+        // Wider popover when both panels are side-by-side; original 300/400 when
+        // showing settings or when compact mode is the desired override.
+        .frame(width: popoverWidth,
                height: manager.windowHeight)
         .animation(.easeOut(duration: 0.15), value: manager.selectedTab)
         .animation(.easeOut(duration: 0.15), value: manager.showSettings)
         .onAppear {
             manager.refreshIfStale()
             manager.refreshStatsIfStale()
+        }
+    }
+
+    // MARK: - Side-by-side layout helpers (personal-fork additions)
+
+    /// Width of the popover. Wider when both Claude and Codex panels are shown
+    /// side-by-side; narrower for settings or compact mode.
+    private var popoverWidth: CGFloat {
+        if !manager.isAuthenticated || manager.showSettings {
+            return 400
+        }
+        // 770 = enough for two ~380px content columns side-by-side.
+        return 770
+    }
+
+    /// The Claude-side content (left column). Routes by selected tab, exactly
+    /// like the previous single-column layout did.
+    @ViewBuilder
+    private var claudeContent: some View {
+        if manager.selectedTab == .analytics {
+            statsView
+        } else if manager.selectedTab == .timeline {
+            timelineView
+        } else if manager.selectedTab == .roi {
+            roiView
+        } else if manager.selectedTab == .extensions {
+            extensionsView
+        } else if manager.isLoading && manager.lastRefresh == nil {
+            loadingView
+        } else if let error = manager.errorMessage {
+            errorView(error)
+        } else if !manager.quotas.isEmpty {
+            if manager.compactMode {
+                compactUsageView
+            } else {
+                usageView
+            }
+        } else {
+            emptyView
         }
     }
 
@@ -198,11 +236,7 @@ struct MenuBarView: View {
                 manager.pluginManager.refresh()
             }
             .keyboardShortcut("5", modifiers: .command)
-            SHTab(label: "Codex", isActive: manager.selectedTab == .codex) {
-                manager.selectedTab = .codex
-                codexManager.refresh()
-            }
-            .keyboardShortcut("6", modifiers: .command)
+            // Codex tab removed in favor of always-visible side-by-side panel.
         }
         .padding(2)
         .background(
@@ -3959,6 +3993,15 @@ struct SHDivider: View {
         Rectangle()
             .fill(Theme.border)
             .frame(height: 1)
+    }
+}
+
+/// Vertical analog of SHDivider — used between the side-by-side panels.
+struct SHVerticalDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(Theme.border)
+            .frame(width: 1)
     }
 }
 
