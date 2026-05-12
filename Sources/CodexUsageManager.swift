@@ -38,56 +38,63 @@ private struct CodexAuthFile: Decodable {
 }
 
 // MARK: - /wham/usage response model
+//
+// Wire format observed against an active ChatGPT-subscription Codex account.
+// Field names match the OpenAPI-generated schema in openai/codex's
+// `codex-backend-openapi-models/src/models/rate_limit_window_snapshot.rs`,
+// not the internal Rust `protocol.rs` types (which use different names).
+//
+// Sample shape:
+// {
+//   "user_id": "user-...", "account_id": "user-...", "email": "...",
+//   "plan_type": "prolite",
+//   "rate_limit": {
+//     "allowed": true, "limit_reached": false,
+//     "primary_window":   { "used_percent": 17, "limit_window_seconds": 18000,
+//                           "reset_after_seconds": 13125, "reset_at": 1778640826 },
+//     "secondary_window": { ... 604800-second window ... }
+//   },
+//   "code_review_rate_limit": null,
+//   "additional_rate_limits": [
+//     { "limit_name": "GPT-5.3-Codex-Spark",
+//       "metered_feature": "codex_bengalfox",
+//       "rate_limit": { "primary_window": {...}, "secondary_window": {...} }}
+//   ],
+//   "credits": { ... }, "spend_control": { ... }
+// }
 
 private struct CodexRateLimitWindow: Decodable {
     let used_percent: Double
-    let window_minutes: Int?
-    let resets_at: Int64?
+    let limit_window_seconds: Int?
+    let reset_after_seconds: Int?
+    let reset_at: Int64?
 }
 
-private struct CodexRateLimitSnapshot: Decodable {
-    let limit_id: String?
+private struct CodexRateLimit: Decodable {
+    let allowed: Bool?
+    let limit_reached: Bool?
+    let primary_window: CodexRateLimitWindow?
+    let secondary_window: CodexRateLimitWindow?
+}
+
+private struct CodexAdditionalLimit: Decodable {
     let limit_name: String?
-    let primary: CodexRateLimitWindow?
-    let secondary: CodexRateLimitWindow?
+    let metered_feature: String?
+    let rate_limit: CodexRateLimit?
 }
 
-/// The server may return either a bare snapshot or a list. Try both shapes.
-private enum CodexUsageResponse {
-    case single(CodexRateLimitSnapshot)
-    case list([CodexRateLimitSnapshot])
+private struct CodexCredits: Decodable {
+    let has_credits: Bool?
+    let unlimited: Bool?
+    let balance: String?
+}
 
-    static func decode(_ data: Data) -> CodexUsageResponse? {
-        let dec = JSONDecoder()
-        if let list = try? dec.decode([CodexRateLimitSnapshot].self, from: data) {
-            return .list(list)
-        }
-        if let single = try? dec.decode(CodexRateLimitSnapshot.self, from: data) {
-            return .single(single)
-        }
-        // Some servers wrap the list in an envelope. Try `.snapshots` and `.data`.
-        if let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            for key in ["snapshots", "data", "rate_limits"] {
-                if let nested = dict[key],
-                   let nestedData = try? JSONSerialization.data(withJSONObject: nested) {
-                    if let list = try? dec.decode([CodexRateLimitSnapshot].self, from: nestedData) {
-                        return .list(list)
-                    }
-                    if let single = try? dec.decode(CodexRateLimitSnapshot.self, from: nestedData) {
-                        return .single(single)
-                    }
-                }
-            }
-        }
-        return nil
-    }
-
-    var snapshots: [CodexRateLimitSnapshot] {
-        switch self {
-        case .single(let s): return [s]
-        case .list(let l): return l
-        }
-    }
+private struct CodexUsageResponse: Decodable {
+    let plan_type: String?
+    let rate_limit: CodexRateLimit?
+    let code_review_rate_limit: CodexRateLimit?
+    let additional_rate_limits: [CodexAdditionalLimit]?
+    let credits: CodexCredits?
 }
 
 // MARK: - Manager
@@ -200,46 +207,77 @@ final class CodexUsageManager: ObservableObject {
     }
 
     private func applyResponse(data: Data) {
-        guard let response = CodexUsageResponse.decode(data) else {
-            errorMessage = "Codex usage: unrecognized response shape."
-            return
-        }
-        let snapshots = response.snapshots
-        // Codex CLI prefers the snapshot with limit_id == "codex"; fall back to first.
-        let snapshot = snapshots.first(where: { $0.limit_id == "codex" }) ?? snapshots.first
-        guard let s = snapshot else {
-            errorMessage = "Codex usage: no snapshots."
+        let response: CodexUsageResponse
+        do {
+            response = try JSONDecoder().decode(CodexUsageResponse.self, from: data)
+        } catch {
+            let preview = String(data: data, encoding: .utf8)?.prefix(200) ?? ""
+            errorMessage = "Codex usage: parse failed (\(error.localizedDescription)). Body: \(preview)"
             return
         }
 
         var built: [UsageQuota] = []
-        if let p = s.primary {
-            built.append(UsageQuota(
-                label: "Session (\(formatWindow(p.window_minutes)))",
-                icon: "bolt.fill",
-                utilization: p.used_percent,
-                resetsAt: p.resets_at.map { Date(timeIntervalSince1970: TimeInterval($0)) }
-            ))
+
+        // Main rate_limit → "Session" + "Weekly" quotas
+        if let main = response.rate_limit {
+            if let p = main.primary_window {
+                built.append(UsageQuota(
+                    label: "Session (\(formatWindow(seconds: p.limit_window_seconds)))",
+                    icon: "bolt.fill",
+                    utilization: p.used_percent,
+                    resetsAt: p.reset_at.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                ))
+            }
+            if let s = main.secondary_window {
+                built.append(UsageQuota(
+                    label: "Weekly (\(formatWindow(seconds: s.limit_window_seconds)))",
+                    icon: "calendar",
+                    utilization: s.used_percent,
+                    resetsAt: s.reset_at.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                ))
+            }
         }
-        if let sec = s.secondary {
+
+        // Feature-scoped limits (e.g., "GPT-5.3-Codex-Spark")
+        for extra in response.additional_rate_limits ?? [] {
+            guard let limit = extra.rate_limit,
+                  let name = extra.limit_name else { continue }
+            if let p = limit.primary_window {
+                built.append(UsageQuota(
+                    label: "\(name) (\(formatWindow(seconds: p.limit_window_seconds)))",
+                    icon: "sparkle",
+                    utilization: p.used_percent,
+                    resetsAt: p.reset_at.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                ))
+            }
+        }
+
+        // Code-review quota if present
+        if let cr = response.code_review_rate_limit, let p = cr.primary_window {
             built.append(UsageQuota(
-                label: "Weekly (\(formatWindow(sec.window_minutes)))",
-                icon: "calendar",
-                utilization: sec.used_percent,
-                resetsAt: sec.resets_at.map { Date(timeIntervalSince1970: TimeInterval($0)) }
+                label: "Code Review (\(formatWindow(seconds: p.limit_window_seconds)))",
+                icon: "checkmark.shield",
+                utilization: p.used_percent,
+                resetsAt: p.reset_at.map { Date(timeIntervalSince1970: TimeInterval($0)) }
             ))
         }
 
         quotas = built
-        errorMessage = built.isEmpty ? "Codex usage: snapshot had no windows." : nil
+        if built.isEmpty {
+            errorMessage = "Codex usage response had no rate-limit windows. Plan: \(response.plan_type ?? "unknown")"
+        } else {
+            errorMessage = nil
+        }
     }
 
-    private func formatWindow(_ minutes: Int?) -> String {
-        guard let m = minutes, m > 0 else { return "rolling" }
-        if m < 60 { return "\(m)m" }
-        let h = m / 60
-        if h < 48 { return "\(h)h" }
-        return "\(h / 24)d"
+    /// Format the `limit_window_seconds` integer into a compact label like "5h", "7d".
+    private func formatWindow(seconds: Int?) -> String {
+        guard let s = seconds, s > 0 else { return "rolling" }
+        let minutes = s / 60
+        if minutes < 60 { return "\(minutes)m" }
+        let hours = minutes / 60
+        if hours < 48 { return "\(hours)h" }
+        return "\(hours / 24)d"
     }
 
     private func scheduleAutoRefresh() {
