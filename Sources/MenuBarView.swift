@@ -86,7 +86,7 @@ struct MenuBarView: View {
                 }
             }
 
-            ResizeHandle(height: $manager.windowHeight, minHeight: 400, maxHeight: 1400)
+            ResizeHandle(height: $manager.windowHeight, minHeight: 500, maxHeight: 1600)
 
             SHDivider()
 

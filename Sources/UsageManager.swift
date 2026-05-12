@@ -845,7 +845,9 @@ class UsageManager: ObservableObject {
         self.compactMode = ud.bool(forKey: UDKey.compactMode)
         self.autoReconnect = ud.bool(forKey: UDKey.autoReconnect)
         let savedHeight = ud.double(forKey: UDKey.windowHeight)
-        self.windowHeight = savedHeight > 0 ? savedHeight : 650
+        // Default raised to 950 to accommodate the side-by-side Claude + Codex
+        // layout without forcing a scroll on first launch.
+        self.windowHeight = savedHeight > 0 ? savedHeight : 950
         let savedDisplayMode = ud.integer(forKey: UDKey.menuBarDisplayMode)
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: savedDisplayMode) ?? .percentageAndTimer
         self.dailyBudget = ud.double(forKey: UDKey.dailyBudget)
