@@ -1,4 +1,4 @@
-.PHONY: generate build run clean
+.PHONY: generate build run install clean
 
 # Generate the Xcode project from project.yml
 generate:
@@ -30,6 +30,19 @@ open: generate
 # Build and run
 run: build
 	open "build/Build/Products/Release/Claude God.app"
+
+# Install the freshly-built app to /Applications, replacing any prior copy.
+# This is the recommended way to use the personal fork day-to-day: avoids the
+# Launch Services drift where macOS keeps launching a stale /Applications copy
+# instead of the current build-directory binary, which manifests as
+# `_LSOpenURLsWithCompletionHandler() failed with error -600`.
+install: build
+	@pkill -9 -f "Claude God.app/Contents/MacOS" || true
+	@sleep 1
+	rm -rf "/Applications/Claude God.app"
+	cp -R "build/Build/Products/Release/Claude God.app" /Applications/
+	codesign --force --sign - --deep "/Applications/Claude God.app"
+	open "/Applications/Claude God.app"
 
 # Create a DMG
 dmg: build
