@@ -676,34 +676,35 @@ struct MenuBarView: View {
 
     // MARK: - Outage banner helper (personal-fork addition)
 
-    /// Renders the full "hit → offline → resume" timeline banner so the user
-    /// doesn't have to mentally subtract reset time from time-to-limit.
-    /// Used by both the Claude and Codex banners.
+    /// Renders ALL approaching outages stacked, so a larger-but-later outage
+    /// (e.g. the weekly wall with 7h of offline time after it hits) isn't
+    /// hidden by a smaller-but-sooner one (a session wall with 1h offline).
+    /// Each row is a hit → offline → resume timeline so the user doesn't
+    /// have to mentally subtract reset times.
+    /// Used by both the Claude and Codex banners; pass `providerPrefix`
+    /// to namespace window labels (e.g. "Codex").
     @ViewBuilder
     private func outageBanner(
-        window: String,
-        timeToLimit: TimeInterval,
-        offlineDuration: TimeInterval,
-        resumesAt: Date
+        forecasts: [UsageManager.OutageForecast],
+        providerPrefix: String
     ) -> some View {
-        let timeFmt: DateFormatter = {
-            let f = DateFormatter()
-            f.timeStyle = .short
-            f.dateStyle = .none
-            return f
-        }()
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundColor(.white)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Brief outage forecast — \(window)")
+            VStack(alignment: .leading, spacing: 4) {
+                Text(forecasts.count == 1
+                     ? "Brief outage forecast"
+                     : "\(forecasts.count) outages approaching")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.white)
-                Text("Hit limit in \(formatOutageDuration(timeToLimit)) · offline \(formatOutageDuration(offlineDuration)) · resumes \(timeFmt.string(from: resumesAt))")
-                    .font(.system(size: 11))
-                    .foregroundColor(.white.opacity(0.92))
-                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(Array(forecasts.enumerated()), id: \.offset) { _, f in
+                    let label = providerPrefix.isEmpty ? f.window : "\(providerPrefix) \(f.window)"
+                    Text("\(label): hit in \(formatOutageDuration(f.timeToLimit)) · offline \(formatOutageDuration(f.offlineDuration)) · resumes \(formatResumeTime(f.resumesAt))")
+                        .font(.system(size: 11))
+                        .foregroundColor(.white.opacity(0.92))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -726,6 +727,36 @@ struct MenuBarView: View {
         return "~\(minutes)m"
     }
 
+    /// Date-aware resume-time formatter. Shows just the time when today,
+    /// "tomorrow X:XX" when tomorrow, and weekday + time within the next
+    /// week, otherwise short date + time. Avoids the prior ambiguity
+    /// where "resumes 6:12 PM" gave no signal whether it meant today.
+    private func formatResumeTime(_ date: Date) -> String {
+        let cal = Calendar.current
+        let timeFmt = DateFormatter()
+        timeFmt.timeStyle = .short
+        timeFmt.dateStyle = .none
+        let time = timeFmt.string(from: date)
+
+        if cal.isDateInToday(date) {
+            return "today \(time)"
+        }
+        if cal.isDateInTomorrow(date) {
+            return "tomorrow \(time)"
+        }
+        let daysOut = cal.dateComponents([.day], from: cal.startOfDay(for: Date()),
+                                          to: cal.startOfDay(for: date)).day ?? 0
+        if daysOut >= 0 && daysOut < 7 {
+            let dayFmt = DateFormatter()
+            dayFmt.dateFormat = "EEE" // Mon, Tue, Wed...
+            return "\(dayFmt.string(from: date)) \(time)"
+        }
+        let fullFmt = DateFormatter()
+        fullFmt.dateStyle = .medium
+        fullFmt.timeStyle = .short
+        return fullFmt.string(from: date)
+    }
+
     // MARK: - Usage
 
     /// Prominent top-of-popover banner that answers "am I about to hit a wall?"
@@ -736,13 +767,8 @@ struct MenuBarView: View {
     ///   the "gathering data" explanation lower in the view)
     @ViewBuilder
     private var usageStatusBanner: some View {
-        if let outage = manager.mostUrgentOutage {
-            outageBanner(
-                window: outage.window,
-                timeToLimit: outage.timeToLimit,
-                offlineDuration: outage.offlineDuration,
-                resumesAt: outage.resumesAt
-            )
+        if !manager.allOutageForecasts.isEmpty {
+            outageBanner(forecasts: manager.allOutageForecasts, providerPrefix: "")
         } else if let urgent = manager.mostUrgentApproaching {
             // Approaching but the matching quota lacks a reset time, so we
             // can't show the full hit→offline→resume timeline. Fall back to
@@ -1211,13 +1237,8 @@ struct MenuBarView: View {
     /// Codex equivalent of usageStatusBanner.
     @ViewBuilder
     private var codexStatusBanner: some View {
-        if let outage = codexManager.mostUrgentOutage {
-            outageBanner(
-                window: "Codex \(outage.window)",
-                timeToLimit: outage.timeToLimit,
-                offlineDuration: outage.offlineDuration,
-                resumesAt: outage.resumesAt
-            )
+        if !codexManager.allOutageForecasts.isEmpty {
+            outageBanner(forecasts: codexManager.allOutageForecasts, providerPrefix: "Codex")
         } else if let urgent = codexManager.mostUrgentApproaching {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")

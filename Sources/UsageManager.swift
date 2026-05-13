@@ -701,31 +701,40 @@ class UsageManager: ObservableObject {
         let offlineDuration: TimeInterval
     }
 
-    /// Outage forecast for the most-urgent approaching window. nil when no
-    /// window is approaching, when the corresponding quota lacks a reset
-    /// time, or when the math yields a non-positive outage (which would
-    /// indicate the .safe branch should have fired instead).
+    /// Outage forecast for the most-urgent approaching window. Kept for
+    /// callers that still want a single value; the banner now uses
+    /// `allOutageForecasts` so longer-but-further-out outages don't get
+    /// buried by shorter-but-sooner ones.
     var mostUrgentOutage: OutageForecast? {
-        guard let urgent = mostUrgentApproaching else { return nil }
-        let quotaForWindow: UsageQuota? = {
-            switch urgent.window {
-            case "Session":       return quotas.first(where: { $0.label.contains("Session") })
-            case "Weekly":        return weeklyQuota
-            case "Claude Design": return quotas.first(where: { $0.label.contains("Claude Design") })
-            default:              return nil
-            }
-        }()
-        guard let q = quotaForWindow, let resetsAt = q.resetsAt else { return nil }
-        let hitAt = Date(timeIntervalSinceNow: urgent.secondsToLimit)
-        let offline = resetsAt.timeIntervalSince(hitAt)
-        guard offline > 0 else { return nil }
-        return OutageForecast(
-            window: urgent.window,
-            timeToLimit: urgent.secondsToLimit,
-            hitAt: hitAt,
-            resumesAt: resetsAt,
-            offlineDuration: offline
-        )
+        allOutageForecasts.min(by: { $0.timeToLimit < $1.timeToLimit })
+    }
+
+    /// One OutageForecast per approaching window that has a reset time and
+    /// a positive offline duration. Returned in order of when the limit
+    /// hits (soonest first), so the user reads them chronologically.
+    var allOutageForecasts: [OutageForecast] {
+        let candidates: [(String, LimitProjection, UsageQuota?)] = [
+            ("Session",       sessionLimitProjection,
+                              quotas.first(where: { $0.label.contains("Session") })),
+            ("Weekly",        weeklyLimitProjection, weeklyQuota),
+            ("Claude Design", designLimitProjection,
+                              quotas.first(where: { $0.label.contains("Claude Design") })),
+        ]
+        let forecasts: [OutageForecast] = candidates.compactMap { name, proj, quota in
+            guard case .approaching(_, let secs) = proj,
+                  let q = quota, let resetsAt = q.resetsAt else { return nil }
+            let hitAt = Date(timeIntervalSinceNow: secs)
+            let offline = resetsAt.timeIntervalSince(hitAt)
+            guard offline > 0 else { return nil }
+            return OutageForecast(
+                window: name,
+                timeToLimit: secs,
+                hitAt: hitAt,
+                resumesAt: resetsAt,
+                offlineDuration: offline
+            )
+        }
+        return forecasts.sorted(by: { $0.timeToLimit < $1.timeToLimit })
     }
 
     var sessionLimitProjection: LimitProjection {

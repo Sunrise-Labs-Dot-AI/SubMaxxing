@@ -370,30 +370,33 @@ final class CodexUsageManager: ObservableObject {
         return !anyApproaching && anySafe
     }
 
-    /// Outage forecast for Codex's most-urgent approaching window — mirrors
-    /// UsageManager.OutageForecast / mostUrgentOutage but scoped to Codex
-    /// quotas. nil when no window is approaching or the math yields a
-    /// non-positive outage.
+    /// Outage forecast for Codex's most-urgent approaching window.
     var mostUrgentOutage: UsageManager.OutageForecast? {
-        guard let urgent = mostUrgentApproaching else { return nil }
-        let quotaForWindow: UsageQuota? = {
-            switch urgent.window {
-            case "Session": return sessionQuota
-            case "Weekly":  return weeklyQuota
-            default:        return nil
-            }
-        }()
-        guard let q = quotaForWindow, let resetsAt = q.resetsAt else { return nil }
-        let hitAt = Date(timeIntervalSinceNow: urgent.secondsToLimit)
-        let offline = resetsAt.timeIntervalSince(hitAt)
-        guard offline > 0 else { return nil }
-        return UsageManager.OutageForecast(
-            window: urgent.window,
-            timeToLimit: urgent.secondsToLimit,
-            hitAt: hitAt,
-            resumesAt: resetsAt,
-            offlineDuration: offline
-        )
+        allOutageForecasts.min(by: { $0.timeToLimit < $1.timeToLimit })
+    }
+
+    /// All approaching Codex windows with positive outages (Session + Weekly).
+    /// Ordered by when the limit hits, soonest first.
+    var allOutageForecasts: [UsageManager.OutageForecast] {
+        let candidates: [(String, UsageManager.LimitProjection, UsageQuota?)] = [
+            ("Session", sessionLimitProjection, sessionQuota),
+            ("Weekly",  weeklyLimitProjection,  weeklyQuota),
+        ]
+        let forecasts: [UsageManager.OutageForecast] = candidates.compactMap { name, proj, quota in
+            guard case .approaching(_, let secs) = proj,
+                  let q = quota, let resetsAt = q.resetsAt else { return nil }
+            let hitAt = Date(timeIntervalSinceNow: secs)
+            let offline = resetsAt.timeIntervalSince(hitAt)
+            guard offline > 0 else { return nil }
+            return UsageManager.OutageForecast(
+                window: name,
+                timeToLimit: secs,
+                hitAt: hitAt,
+                resumesAt: resetsAt,
+                offlineDuration: offline
+            )
+        }
+        return forecasts.sorted(by: { $0.timeToLimit < $1.timeToLimit })
     }
 
     var burnRateUnavailableReason: String? {
