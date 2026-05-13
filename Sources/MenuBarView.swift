@@ -716,6 +716,41 @@ struct MenuBarView: View {
         )
     }
 
+    /// Inline outage strip rendered below a quota card's progress bar when
+    /// the corresponding window is approaching its limit. Replaces the
+    /// quieter "Resets in X" line with the full hit→resume schedule so the
+    /// user sees the outage window in context of the meter that's driving
+    /// it. Cleaner and larger than the prior global banner.
+    @ViewBuilder
+    private func outageStrip(forecast: UsageManager.OutageForecast) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.red)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Offline \(formatTimeRange(from: forecast.hitAt, to: forecast.resumesAt))")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("≈\(formatOutageDuration(forecast.offlineDuration)) before this window resets")
+                    .font(.system(size: 10))
+                    .foregroundColor(.red.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.red.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(Color.red.opacity(0.25), lineWidth: 1)
+                )
+        )
+    }
+
     /// Compact "~Xd Yh / ~Xh Ym / ~Xm" formatter, matching the rest of the app.
     private func formatOutageDuration(_ seconds: TimeInterval) -> String {
         let total = Int(seconds)
@@ -797,33 +832,10 @@ struct MenuBarView: View {
     ///   the "gathering data" explanation lower in the view)
     @ViewBuilder
     private var usageStatusBanner: some View {
-        if !manager.allOutageForecasts.isEmpty {
-            outageBanner(forecasts: manager.allOutageForecasts, providerPrefix: "")
-        } else if let urgent = manager.mostUrgentApproaching {
-            // Approaching but the matching quota lacks a reset time, so we
-            // can't show the full hit→offline→resume timeline. Fall back to
-            // the shorter banner.
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Approaching \(urgent.window) limit")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("At current rate, you'll hit it in \(urgent.label)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                    .fill(Color.red.opacity(0.85))
-            )
-        } else if manager.allWindowsSafe {
+        // Outage details now live inline below each quota card via outageStrip().
+        // The top banner is reserved for the cross-window "all clear" summary so
+        // a clean green check appears when nothing is at risk.
+        if manager.allWindowsSafe {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 18, weight: .semibold))
@@ -889,7 +901,11 @@ struct MenuBarView: View {
                         .frame(height: 6)
                         .accessibilityHidden(true)
 
-                        if let resetsAt = quota.resetsAt, resetsAt.timeIntervalSinceNow > 0 {
+                        // Inline outage info when this window is approaching its limit,
+                        // otherwise the quieter "Resets in X" line.
+                        if let forecast = manager.allOutageForecasts.first(where: { quota.label.contains($0.window) }) {
+                            outageStrip(forecast: forecast)
+                        } else if let resetsAt = quota.resetsAt, resetsAt.timeIntervalSinceNow > 0 {
                             Text("Resets \(relativeResetTime(resetsAt))")
                                 .font(.system(size: 11, weight: .medium, design: .monospaced))
                                 .foregroundColor(.secondary)
@@ -953,62 +969,10 @@ struct MenuBarView: View {
                 )
             }
 
-            // Burn rate trajectory (session + weekly + fallback) — personal-fork additions.
-            // Tint the container by the "worst" state so the box reads at a glance:
-            //   approaching => orange (any approaching wins)
-            //   safe        => green
-            //   insufficient => gray (rendered only when both windows are insufficient)
-            let containerTint: Color = {
-                if case .approaching = manager.sessionLimitProjection { return .orange }
-                if case .approaching = manager.weeklyLimitProjection { return .orange }
-                if case .approaching = manager.designLimitProjection { return .orange }
-                if case .safe = manager.sessionLimitProjection { return .green }
-                if case .safe = manager.weeklyLimitProjection { return .green }
-                if case .safe = manager.designLimitProjection { return .green }
-                return .secondary
-            }()
-            VStack(spacing: 4) {
-                BurnRateProjectionRow(
-                    label: "Session",
-                    icon: "gauge.with.needle",
-                    projection: manager.sessionLimitProjection,
-                    compact: false
-                )
-                BurnRateProjectionRow(
-                    label: "Weekly",
-                    icon: "calendar.badge.exclamationmark",
-                    projection: manager.weeklyLimitProjection,
-                    compact: false
-                )
-                BurnRateProjectionRow(
-                    label: "Claude Design",
-                    icon: "paintbrush.fill",
-                    projection: manager.designLimitProjection,
-                    compact: false
-                )
-                if let reason = manager.burnRateUnavailableReason {
-                    HStack(spacing: 6) {
-                        Image(systemName: "gauge.with.needle")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.secondary)
-                        Text(reason)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                    }
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                    .strokeBorder(containerTint.opacity(0.15), lineWidth: 1)
-                    .background(
-                        RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                            .fill(containerTint.opacity(0.05))
-                    )
-            )
+            // The bottom burn-rate trajectory block was removed — its content
+            // (per-window approaching / safe / insufficient state) now lives
+            // inline below each quota card via outageStrip() or the "Resets in"
+            // line, which is contextual rather than duplicative.
 
             // Monthly cost forecast
             if let forecast = manager.monthlyForecast {
@@ -1207,7 +1171,10 @@ struct MenuBarView: View {
                                 }
                             }
                             .frame(height: 6)
-                            if let resetsAt = quota.resetsAt {
+                            // Inline outage info when this Codex window is approaching its limit.
+                            if let forecast = codexManager.allOutageForecasts.first(where: { quota.label.contains($0.window) }) {
+                                outageStrip(forecast: forecast)
+                            } else if let resetsAt = quota.resetsAt {
                                 Text("Resets \(RelativeDateTimeFormatter().localizedString(for: resetsAt, relativeTo: Date()))")
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
@@ -1216,81 +1183,17 @@ struct MenuBarView: View {
                     }
                 }
 
-                // Burn-rate block (mirrors Claude side)
-                let containerTint: Color = {
-                    if case .approaching = codexManager.sessionLimitProjection { return .orange }
-                    if case .approaching = codexManager.weeklyLimitProjection { return .orange }
-                    if case .safe = codexManager.sessionLimitProjection { return .green }
-                    if case .safe = codexManager.weeklyLimitProjection { return .green }
-                    return .secondary
-                }()
-                VStack(spacing: 4) {
-                    BurnRateProjectionRow(
-                        label: "Session",
-                        icon: "gauge.with.needle",
-                        projection: codexManager.sessionLimitProjection,
-                        compact: false
-                    )
-                    BurnRateProjectionRow(
-                        label: "Weekly",
-                        icon: "calendar.badge.exclamationmark",
-                        projection: codexManager.weeklyLimitProjection,
-                        compact: false
-                    )
-                    if let reason = codexManager.burnRateUnavailableReason {
-                        HStack(spacing: 6) {
-                            Image(systemName: "gauge.with.needle")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.secondary)
-                            Text(reason)
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
-                        }
-                    }
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                        .strokeBorder(containerTint.opacity(0.15), lineWidth: 1)
-                        .background(
-                            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                                .fill(containerTint.opacity(0.05))
-                        )
-                )
+                // Bottom burn-rate trajectory block removed — replaced by
+                // outageStrip() on each Codex quota card above.
             }
         }
     }
 
-    /// Codex equivalent of usageStatusBanner.
+    /// Codex equivalent of usageStatusBanner. Outage details live inline under
+    /// each Codex quota card; this banner only renders the all-safe summary.
     @ViewBuilder
     private var codexStatusBanner: some View {
-        if !codexManager.allOutageForecasts.isEmpty {
-            outageBanner(forecasts: codexManager.allOutageForecasts, providerPrefix: "Codex")
-        } else if let urgent = codexManager.mostUrgentApproaching {
-            HStack(spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.white)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("Approaching Codex \(urgent.window) limit")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                    Text("At current rate, you'll hit it in \(urgent.label)")
-                        .font(.system(size: 11))
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
-                    .fill(Color.red.opacity(0.85))
-            )
-        } else if codexManager.allWindowsSafe {
+        if codexManager.allWindowsSafe {
             HStack(spacing: 10) {
                 Image(systemName: "checkmark.seal.fill")
                     .font(.system(size: 18, weight: .semibold))
