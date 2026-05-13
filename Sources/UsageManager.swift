@@ -689,6 +689,45 @@ class UsageManager: ObservableObject {
         return !anyApproaching && anySafe
     }
 
+    /// What an approaching projection actually means in calendar terms:
+    /// when you'll hit the wall, how long you'll be offline, when you'll
+    /// be back. Returned only when the most-urgent approaching window
+    /// has a known reset time and the implied outage is positive.
+    struct OutageForecast {
+        let window: String           // "Session" / "Weekly" / "Claude Design"
+        let timeToLimit: TimeInterval
+        let hitAt: Date              // when limit is reached
+        let resumesAt: Date          // when the window resets
+        let offlineDuration: TimeInterval
+    }
+
+    /// Outage forecast for the most-urgent approaching window. nil when no
+    /// window is approaching, when the corresponding quota lacks a reset
+    /// time, or when the math yields a non-positive outage (which would
+    /// indicate the .safe branch should have fired instead).
+    var mostUrgentOutage: OutageForecast? {
+        guard let urgent = mostUrgentApproaching else { return nil }
+        let quotaForWindow: UsageQuota? = {
+            switch urgent.window {
+            case "Session":       return quotas.first(where: { $0.label.contains("Session") })
+            case "Weekly":        return weeklyQuota
+            case "Claude Design": return quotas.first(where: { $0.label.contains("Claude Design") })
+            default:              return nil
+            }
+        }()
+        guard let q = quotaForWindow, let resetsAt = q.resetsAt else { return nil }
+        let hitAt = Date(timeIntervalSinceNow: urgent.secondsToLimit)
+        let offline = resetsAt.timeIntervalSince(hitAt)
+        guard offline > 0 else { return nil }
+        return OutageForecast(
+            window: urgent.window,
+            timeToLimit: urgent.secondsToLimit,
+            hitAt: hitAt,
+            resumesAt: resetsAt,
+            offlineDuration: offline
+        )
+    }
+
     var sessionLimitProjection: LimitProjection {
         projectLimit(
             for: quotas.first(where: { $0.label.contains("Session") }),

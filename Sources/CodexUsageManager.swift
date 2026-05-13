@@ -370,6 +370,32 @@ final class CodexUsageManager: ObservableObject {
         return !anyApproaching && anySafe
     }
 
+    /// Outage forecast for Codex's most-urgent approaching window — mirrors
+    /// UsageManager.OutageForecast / mostUrgentOutage but scoped to Codex
+    /// quotas. nil when no window is approaching or the math yields a
+    /// non-positive outage.
+    var mostUrgentOutage: UsageManager.OutageForecast? {
+        guard let urgent = mostUrgentApproaching else { return nil }
+        let quotaForWindow: UsageQuota? = {
+            switch urgent.window {
+            case "Session": return sessionQuota
+            case "Weekly":  return weeklyQuota
+            default:        return nil
+            }
+        }()
+        guard let q = quotaForWindow, let resetsAt = q.resetsAt else { return nil }
+        let hitAt = Date(timeIntervalSinceNow: urgent.secondsToLimit)
+        let offline = resetsAt.timeIntervalSince(hitAt)
+        guard offline > 0 else { return nil }
+        return UsageManager.OutageForecast(
+            window: urgent.window,
+            timeToLimit: urgent.secondsToLimit,
+            hitAt: hitAt,
+            resumesAt: resetsAt,
+            offlineDuration: offline
+        )
+    }
+
     var burnRateUnavailableReason: String? {
         if case .insufficientData = sessionLimitProjection,
            case .insufficientData = weeklyLimitProjection {

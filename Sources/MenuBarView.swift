@@ -674,6 +674,58 @@ struct MenuBarView: View {
         }
     }
 
+    // MARK: - Outage banner helper (personal-fork addition)
+
+    /// Renders the full "hit → offline → resume" timeline banner so the user
+    /// doesn't have to mentally subtract reset time from time-to-limit.
+    /// Used by both the Claude and Codex banners.
+    @ViewBuilder
+    private func outageBanner(
+        window: String,
+        timeToLimit: TimeInterval,
+        offlineDuration: TimeInterval,
+        resumesAt: Date
+    ) -> some View {
+        let timeFmt: DateFormatter = {
+            let f = DateFormatter()
+            f.timeStyle = .short
+            f.dateStyle = .none
+            return f
+        }()
+        HStack(spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Brief outage forecast — \(window)")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.white)
+                Text("Hit limit in \(formatOutageDuration(timeToLimit)) · offline \(formatOutageDuration(offlineDuration)) · resumes \(timeFmt.string(from: resumesAt))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.white.opacity(0.92))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                .fill(Color.red.opacity(0.85))
+        )
+    }
+
+    /// Compact "~Xd Yh / ~Xh Ym / ~Xm" formatter, matching the rest of the app.
+    private func formatOutageDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        let days = total / (24 * 3600)
+        let hours = (total % (24 * 3600)) / 3600
+        let minutes = (total % 3600) / 60
+        if days > 0 { return "~\(days)d \(hours)h" }
+        if hours > 0 { return "~\(hours)h \(minutes)m" }
+        return "~\(minutes)m"
+    }
+
     // MARK: - Usage
 
     /// Prominent top-of-popover banner that answers "am I about to hit a wall?"
@@ -684,7 +736,17 @@ struct MenuBarView: View {
     ///   the "gathering data" explanation lower in the view)
     @ViewBuilder
     private var usageStatusBanner: some View {
-        if let urgent = manager.mostUrgentApproaching {
+        if let outage = manager.mostUrgentOutage {
+            outageBanner(
+                window: outage.window,
+                timeToLimit: outage.timeToLimit,
+                offlineDuration: outage.offlineDuration,
+                resumesAt: outage.resumesAt
+            )
+        } else if let urgent = manager.mostUrgentApproaching {
+            // Approaching but the matching quota lacks a reset time, so we
+            // can't show the full hit→offline→resume timeline. Fall back to
+            // the shorter banner.
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 18, weight: .semibold))
@@ -1149,7 +1211,14 @@ struct MenuBarView: View {
     /// Codex equivalent of usageStatusBanner.
     @ViewBuilder
     private var codexStatusBanner: some View {
-        if let urgent = codexManager.mostUrgentApproaching {
+        if let outage = codexManager.mostUrgentOutage {
+            outageBanner(
+                window: "Codex \(outage.window)",
+                timeToLimit: outage.timeToLimit,
+                offlineDuration: outage.offlineDuration,
+                resumesAt: outage.resumesAt
+            )
+        } else if let urgent = codexManager.mostUrgentApproaching {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 18, weight: .semibold))
