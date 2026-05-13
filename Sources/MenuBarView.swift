@@ -716,6 +716,117 @@ struct MenuBarView: View {
         )
     }
 
+    // MARK: - Recommendations (personal-fork addition)
+
+    /// A small, actionable recommendation card surfaced in the usage panel
+    /// when the rule engine below thinks the user could shift behavior to
+    /// avoid hitting a limit. Rules are intentionally simple and few — better
+    /// to surface 1-3 high-signal tips than 8 vague ones.
+    private struct UsageRecommendation: Identifiable {
+        let id = UUID()
+        let icon: String
+        let title: String
+        let body: String
+        let tint: Color
+    }
+
+    /// Rule engine. Each rule produces a recommendation only when its
+    /// condition is met. Capped at 3 to keep the panel skimmable.
+    private var recommendations: [UsageRecommendation] {
+        var recs: [UsageRecommendation] = []
+
+        // Pull outages once for the rules below.
+        let sessionOutage = manager.allOutageForecasts.first(where: { $0.window == "Session" })
+        let weeklyOutage  = manager.allOutageForecasts.first(where: { $0.window == "Weekly" })
+
+        // Rule 1 — Weekly wall coming: defer non-urgent work
+        if let outage = weeklyOutage {
+            recs.append(UsageRecommendation(
+                icon: "calendar.badge.clock",
+                title: "Defer non-urgent work past the weekly reset",
+                body: "Weekly outage \(formatTimeRange(from: outage.hitAt, to: outage.resumesAt)). Anything that doesn't have to land before \(formatAbsoluteTime(outage.hitAt)) is cheaper to resume after \(formatAbsoluteTime(outage.resumesAt)).",
+                tint: .red
+            ))
+        }
+
+        // Rule 2 — Session wall coming: wrap or queue
+        if let outage = sessionOutage {
+            recs.append(UsageRecommendation(
+                icon: "pause.circle",
+                title: "Wrap or stage your current task",
+                body: "Session window hits the limit \(formatAbsoluteTime(outage.hitAt)). Either finish the current thread or write a short handoff so you can resume after \(formatAbsoluteTime(outage.resumesAt)).",
+                tint: .orange
+            ))
+        }
+
+        // Rule 3 — Opus dominating weekly spend: route routine work to Sonnet
+        if let opusQuota = manager.quotas.first(where: { $0.label.contains("Opus") }),
+           opusQuota.utilization >= 40 {
+            recs.append(UsageRecommendation(
+                icon: "arrow.down.right.circle",
+                title: "Lean on Sonnet for routine work",
+                body: "Opus is at \(Int(opusQuota.utilization))% of its weekly window. Routing code edits, lookups, and quick rewrites to Sonnet preserves Opus headroom for design and architectural calls.",
+                tint: .blue
+            ))
+        }
+
+        // Rule 4 — Claude approaching, Codex has capacity: cross-provider routing
+        let claudeApproaching = !manager.allOutageForecasts.isEmpty
+        let codexHasData = !codexManager.quotas.isEmpty
+        let codexHeadroom = codexManager.quotas.allSatisfy { $0.utilization < 50 }
+        if claudeApproaching && codexHasData && codexHeadroom {
+            recs.append(UsageRecommendation(
+                icon: "arrow.right.circle",
+                title: "Codex has capacity — consider routing some work there",
+                body: "Your Codex windows are all under 50% used. Terminal coding sessions could shift to the Codex CLI until Claude's windows reset.",
+                tint: .purple
+            ))
+        }
+
+        return Array(recs.prefix(3))
+    }
+
+    @ViewBuilder
+    private var recommendationsSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "lightbulb.fill")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.yellow)
+                Text("Recommendations")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            ForEach(recommendations) { rec in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: rec.icon)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(rec.tint)
+                        .frame(width: 18, alignment: .center)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(rec.title)
+                            .font(.system(size: 12, weight: .semibold))
+                            .fixedSize(horizontal: false, vertical: true)
+                        Text(rec.body)
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                        .fill(rec.tint.opacity(0.06))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                                .strokeBorder(rec.tint.opacity(0.18), lineWidth: 1)
+                        )
+                )
+            }
+        }
+    }
+
     /// Inline outage strip rendered below a quota card's progress bar when
     /// the corresponding window is approaching its limit. Replaces the
     /// quieter "Resets in X" line with the full hit→resume schedule so the
@@ -912,6 +1023,11 @@ struct MenuBarView: View {
                         }
                     }
                 }
+            }
+
+            // Recommendations: small, actionable suggestions for not hitting limits.
+            if !recommendations.isEmpty {
+                recommendationsSection
             }
 
             // Peak / Off-peak indicator
