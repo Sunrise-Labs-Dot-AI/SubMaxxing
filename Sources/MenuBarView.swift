@@ -784,13 +784,44 @@ struct MenuBarView: View {
             ))
         }
 
-        // Rule 4 — Opus dominating weekly spend: route routine work to Sonnet
+        // Rule 4 — Opus dominating weekly spend. Uses real per-model $ from
+        // SessionAnalyzer's aggregatedModels (JSONL-derived API-equivalent cost)
+        // to project how much weekly headroom routing half of Opus to Sonnet
+        // would actually buy. Sonnet ≈ 60% of Opus per equivalent token, so
+        // moving half of Opus work to Sonnet saves opusShare × 0.5 × 0.4 of
+        // the total weekly burn.
         if let opusQuota = manager.quotas.first(where: { $0.label.contains("Opus") }),
            opusQuota.utilization >= 40 {
+            let agg = manager.weekStats.aggregatedModels
+            let opusCost = agg.first(where: { $0.shortName == "Opus" })?.cost ?? 0
+            let totalWeekCost = manager.weekStats.totalCost
+            let opusShare = totalWeekCost > 0 ? opusCost / totalWeekCost : 0
+            let burnReductionFraction = opusShare * 0.5 * 0.4  // halve × Sonnet-cost-delta
+
+            // First clause: actual Opus footprint.
+            let shareLine: String = totalWeekCost > 0
+                ? "Opus is at \(Int(opusQuota.utilization))% of its weekly window — about \(Int(opusShare * 100))% of your weekly burn."
+                : "Opus is at \(Int(opusQuota.utilization))% of its weekly window."
+
+            // Second clause: projected extension. If we have a weekly outage
+            // forecast we can give absolute hours. Otherwise stay directional.
+            var headroomLine = "Moving half of routine Opus work to Sonnet would extend your weekly headroom meaningfully."
+            if burnReductionFraction > 0.02,
+               let weeklyOutage = manager.allOutageForecasts.first(where: { $0.window == "Weekly" }) {
+                // time-to-limit grows by factor 1/(1-r); extra = current × r/(1-r)
+                let extraSeconds = weeklyOutage.timeToLimit * burnReductionFraction / (1 - burnReductionFraction)
+                if extraSeconds > 3600 {
+                    headroomLine = "Moving half of routine Opus work to Sonnet would push the weekly outage out by ~\(formatOutageDuration(extraSeconds))."
+                }
+            } else if burnReductionFraction > 0.02 {
+                let pct = Int(burnReductionFraction * 100)
+                headroomLine = "Moving half of routine Opus work to Sonnet would cut your weekly burn rate by ~\(pct)%."
+            }
+
             recs.append(UsageRecommendation(
                 icon: "arrow.down.right.circle",
                 title: "Lean on Sonnet for routine work",
-                body: "Opus is at \(Int(opusQuota.utilization))% of its weekly window. Routing code edits, lookups, and quick rewrites to Sonnet preserves Opus headroom for design and architectural calls.",
+                body: "\(shareLine) \(headroomLine) Keep Opus for architecture and multi-file work; route quick edits, lookups, and boilerplate to Sonnet.",
                 tint: .blue
             ))
         }
