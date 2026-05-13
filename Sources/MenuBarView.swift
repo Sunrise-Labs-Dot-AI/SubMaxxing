@@ -700,7 +700,7 @@ struct MenuBarView: View {
                     .foregroundColor(.white)
                 ForEach(Array(forecasts.enumerated()), id: \.offset) { _, f in
                     let label = providerPrefix.isEmpty ? f.window : "\(providerPrefix) \(f.window)"
-                    Text("\(label): hit in \(formatOutageDuration(f.timeToLimit)) · offline \(formatOutageDuration(f.offlineDuration)) · resumes \(formatResumeTime(f.resumesAt))")
+                    Text("\(label): offline \(formatTimeRange(from: f.hitAt, to: f.resumesAt)) (\(formatOutageDuration(f.offlineDuration)))")
                         .font(.system(size: 11))
                         .foregroundColor(.white.opacity(0.92))
                         .fixedSize(horizontal: false, vertical: true)
@@ -727,11 +727,11 @@ struct MenuBarView: View {
         return "~\(minutes)m"
     }
 
-    /// Date-aware resume-time formatter. Shows just the time when today,
-    /// "tomorrow X:XX" when tomorrow, and weekday + time within the next
-    /// week, otherwise short date + time. Avoids the prior ambiguity
-    /// where "resumes 6:12 PM" gave no signal whether it meant today.
-    private func formatResumeTime(_ date: Date) -> String {
+    /// Date-aware absolute-time formatter. Shows just the time when today,
+    /// "tomorrow X:XX" when tomorrow, weekday + time within the next week,
+    /// otherwise short date + time. Used for both outage start and end
+    /// timestamps so the banner never makes the user compute "now + 2h 30m".
+    private func formatAbsoluteTime(_ date: Date) -> String {
         let cal = Calendar.current
         let timeFmt = DateFormatter()
         timeFmt.timeStyle = .short
@@ -755,6 +755,36 @@ struct MenuBarView: View {
         fullFmt.dateStyle = .medium
         fullFmt.timeStyle = .short
         return fullFmt.string(from: date)
+    }
+
+    /// Collapse "today X – today Y" or "Wed X – Wed Y" into "today X – Y"
+    /// when both endpoints fall on the same calendar day. Otherwise prints
+    /// each side fully (e.g. "today 11:00 PM – tomorrow 4:00 AM").
+    private func formatTimeRange(from start: Date, to end: Date) -> String {
+        let cal = Calendar.current
+        let sameDay = cal.isDate(start, inSameDayAs: end)
+        if !sameDay {
+            return "\(formatAbsoluteTime(start)) – \(formatAbsoluteTime(end))"
+        }
+        let timeOnly = DateFormatter()
+        timeOnly.timeStyle = .short
+        timeOnly.dateStyle = .none
+        let dayPrefix: String = {
+            if cal.isDateInToday(start) { return "today" }
+            if cal.isDateInTomorrow(start) { return "tomorrow" }
+            let daysOut = cal.dateComponents([.day], from: cal.startOfDay(for: Date()),
+                                              to: cal.startOfDay(for: start)).day ?? 0
+            if daysOut >= 0 && daysOut < 7 {
+                let dayFmt = DateFormatter()
+                dayFmt.dateFormat = "EEE"
+                return dayFmt.string(from: start)
+            }
+            let dateFmt = DateFormatter()
+            dateFmt.dateStyle = .medium
+            dateFmt.timeStyle = .none
+            return dateFmt.string(from: start)
+        }()
+        return "\(dayPrefix) \(timeOnly.string(from: start)) – \(timeOnly.string(from: end))"
     }
 
     // MARK: - Usage
