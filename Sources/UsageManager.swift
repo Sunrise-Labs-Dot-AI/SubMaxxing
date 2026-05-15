@@ -747,20 +747,43 @@ class UsageManager: ObservableObject {
     }
 
     var weeklyLimitProjection: LimitProjection {
-        // Prefer the smoothed projection driven by daily JSONL history when we
-        // have enough data — less reactive to recent bursts than the cumulative
-        // linear rate, which is the failure mode the user surfaced
-        // ("rate doesn't account for sleep"). Falls back to linear when we
-        // can't compute a stable median (new account, too little history).
-        if let smoothed = weeklyLimitProjectionSmoothed() {
-            return smoothed
-        }
-        return projectLimit(
+        // Combine the linear (cumulative) projection with a smoothed
+        // (median-daily) projection, biased CONSERVATIVE:
+        // - If linear says approaching → approaching wins. The smoothed
+        //   estimate must not dismiss a real alert just because the median
+        //   day looked quieter than the recent burst.
+        // - If both say approaching → use whichever has the SOONER ETA, so
+        //   we show the user the conservative arrival time.
+        // - If linear says safe and smoothed says approaching → still show
+        //   approaching (the smoothed estimate caught something the
+        //   cumulative average masked).
+        // - If both agree on safe → safe.
+        //
+        // Prior version preferred smoothed when present, which was too
+        // forgiving: a recent heavy day pulled mean up, median stayed at
+        // typical day, and the projection silently dropped to .safe.
+        let linear = projectLimit(
             for: weeklyQuota,
             windowDuration: 7 * 24 * 3600,
             minElapsed: 1800,
             minUtilization: 2
         )
+        let smoothed = weeklyLimitProjectionSmoothed() ?? .insufficientData
+
+        switch (linear, smoothed) {
+        case (.approaching(let lLabel, let lSecs), .approaching(let sLabel, let sSecs)):
+            return lSecs <= sSecs
+                ? .approaching(label: lLabel, secondsToLimit: lSecs)
+                : .approaching(label: sLabel, secondsToLimit: sSecs)
+        case (.approaching, _):
+            return linear
+        case (_, .approaching):
+            return smoothed
+        case (.safe, _), (_, .safe):
+            return .safe
+        default:
+            return .insufficientData
+        }
     }
 
     /// Median-daily-burn projection for the weekly window. Computes the
