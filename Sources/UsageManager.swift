@@ -747,12 +747,84 @@ class UsageManager: ObservableObject {
     }
 
     var weeklyLimitProjection: LimitProjection {
-        projectLimit(
+        // Prefer the smoothed projection driven by daily JSONL history when we
+        // have enough data — less reactive to recent bursts than the cumulative
+        // linear rate, which is the failure mode the user surfaced
+        // ("rate doesn't account for sleep"). Falls back to linear when we
+        // can't compute a stable median (new account, too little history).
+        if let smoothed = weeklyLimitProjectionSmoothed() {
+            return smoothed
+        }
+        return projectLimit(
             for: weeklyQuota,
             windowDuration: 7 * 24 * 3600,
             minElapsed: 1800,
             minUtilization: 2
         )
+    }
+
+    /// Median-daily-burn projection for the weekly window. Computes the
+    /// median $ cost across days that had meaningful activity (>$0.50),
+    /// projects the weekly $ budget from current utilization, and divides
+    /// remaining budget by median-day burn to get days-to-limit.
+    ///
+    /// Why median: linear cumulative averaging is correct in expectation
+    /// but volatile around recent bursts. Median is robust to one heavy
+    /// day pulling the rate up artificially.
+    ///
+    /// Returns nil when there isn't enough JSONL daily data (< 3 active
+    /// days, no cost recorded, etc.) — caller falls back to linear.
+    private func weeklyLimitProjectionSmoothed() -> LimitProjection? {
+        guard let q = weeklyQuota,
+              let resetsAt = q.resetsAt,
+              q.utilization > 2 else { return nil }
+
+        let activeDailyCosts = weekStats.daily
+            .map { $0.cost }
+            .filter { $0 > 0.5 }
+        guard activeDailyCosts.count >= 3 else { return nil }
+
+        let sorted = activeDailyCosts.sorted()
+        let mid = sorted.count / 2
+        let medianActiveDayBurn: Double = sorted.count % 2 == 0
+            ? (sorted[mid - 1] + sorted[mid]) / 2
+            : sorted[mid]
+        guard medianActiveDayBurn > 0 else { return nil }
+
+        // Estimate the weekly $ budget by inverting current utilization.
+        // If you've spent $X and that's 77% of the cap, cap = $X / 0.77.
+        let currentCost = weekStats.totalCost
+        guard currentCost > 0 else { return nil }
+        let weeklyBudgetDollars = currentCost / (q.utilization / 100.0)
+        let remainingDollars = weeklyBudgetDollars - currentCost
+        guard remainingDollars > 0 else { return nil }
+
+        // Adjust: future days won't all be active. Use observed activity
+        // ratio (active days / total days observed) as the expected
+        // activity frequency going forward. Mirrors the past pattern.
+        let totalObservedDays = max(weekStats.daily.count, 1)
+        let activityRatio = Double(activeDailyCosts.count) / Double(totalObservedDays)
+        let expectedDailyBurn = medianActiveDayBurn * activityRatio
+        guard expectedDailyBurn > 0 else { return nil }
+
+        let daysToLimit = remainingDollars / expectedDailyBurn
+        let secondsToLimit = daysToLimit * 24 * 3600
+
+        let timeRemaining = resetsAt.timeIntervalSinceNow
+        if secondsToLimit > timeRemaining { return .safe }
+
+        let days = Int(secondsToLimit) / (24 * 3600)
+        let hours = (Int(secondsToLimit) % (24 * 3600)) / 3600
+        let minutes = (Int(secondsToLimit) % 3600) / 60
+        let label: String
+        if days > 0 {
+            label = "~\(days)d \(hours)h"
+        } else if hours > 0 {
+            label = "~\(hours)h \(minutes)m"
+        } else {
+            label = "~\(minutes)m"
+        }
+        return .approaching(label: label, secondsToLimit: secondsToLimit)
     }
 
     /// Per-surface burn rate for Claude Design (Omelette). 7-day window, same thresholds

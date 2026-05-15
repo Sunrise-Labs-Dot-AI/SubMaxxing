@@ -918,6 +918,10 @@ struct MenuBarView: View {
                     .font(.system(size: 10))
                     .foregroundColor(.red.opacity(0.75))
                     .fixedSize(horizontal: false, vertical: true)
+                Text("Assumes your usage pattern (active hours, sleep cycles) continues")
+                    .font(.system(size: 9))
+                    .foregroundColor(.red.opacity(0.55))
+                    .fixedSize(horizontal: false, vertical: true)
                 if isHardLimit {
                     Text("Hard limit — Extra usage doesn't cover this window")
                         .font(.system(size: 10, weight: .medium))
