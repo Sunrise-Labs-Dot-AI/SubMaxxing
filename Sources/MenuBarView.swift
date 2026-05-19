@@ -76,9 +76,9 @@ struct MenuBarView: View {
 
                     SHVerticalDivider()
 
-                    // Right column: Codex (always visible, single Usage view)
+                    // Right column: Codex (routes alongside the selected tab)
                     ScrollView(.vertical, showsIndicators: false) {
-                        codexUsageView
+                        codexContent
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                     }
@@ -143,6 +143,21 @@ struct MenuBarView: View {
             }
         } else {
             emptyView
+        }
+    }
+
+    @ViewBuilder
+    private var codexContent: some View {
+        if manager.selectedTab == .analytics {
+            codexStatsView
+        } else if manager.selectedTab == .timeline {
+            codexTimelineStub
+        } else if manager.selectedTab == .roi {
+            codexROIStub
+        } else if manager.selectedTab == .extensions {
+            codexExtensionsStub
+        } else {
+            codexUsageView
         }
     }
 
@@ -1804,6 +1819,62 @@ struct MenuBarView: View {
         }
         .onAppear {
             codexManager.refreshStatsIfStale()
+        }
+    }
+
+    private var codexTimelineStub: some View {
+        codexStubCard(
+            icon: "clock",
+            title: "Codex timeline coming soon",
+            detail: "Session analytics are tracked now. Message-level timeline support is next."
+        )
+    }
+
+    private var codexROIStub: some View {
+        codexStubCard(
+            icon: "chart.line.uptrend.xyaxis",
+            title: "ROI tracking is Claude-specific",
+            detail: "This view correlates Claude sessions with local git commits."
+        )
+    }
+
+    private var codexExtensionsStub: some View {
+        codexStubCard(
+            icon: "puzzlepiece.extension",
+            title: "Extensions are Claude-specific",
+            detail: "MCP servers, skills, and plugins are managed on the Claude side."
+        )
+    }
+
+    private func codexStubCard(icon: String, title: String, detail: String) -> some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "terminal.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                Text("OpenAI Codex")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+            }
+
+            SHCard {
+                VStack(spacing: 8) {
+                    Image(systemName: icon)
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundColor(.secondary.opacity(0.6))
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.primary)
+                        .multilineTextAlignment(.center)
+                    Text(detail)
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 18)
+            }
         }
     }
 
