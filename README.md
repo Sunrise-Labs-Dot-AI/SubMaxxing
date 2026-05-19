@@ -11,17 +11,6 @@
   Quotas, session history, API-equivalent cost analytics, project breakdowns, and subscription-aware planning.
 </p>
 
-<p align="center">
-  <img src="assets/screenshot-usage.png" width="320" alt="Usage tab with quota cards">
-  &nbsp;&nbsp;
-  <img src="assets/screenshot-analytics.png" width="320" alt="Analytics tab with costs, model breakdown, and trend chart">
-</p>
-<p align="center">
-  <img src="assets/screenshot-timeline.png" width="320" alt="Timeline tab with recent sessions">
-  &nbsp;&nbsp;
-  <img src="assets/screenshot-roi.png" width="320" alt="ROI tab with project and commit analysis">
-</p>
-
 ---
 
 ## What It Does

@@ -52,7 +52,6 @@
         "softwareVersion": "2.9.0",
         "programmingLanguage": "Swift",
         "featureList": "Real-time quota gauges, Cost tracking per model, Session timeline, 30-day analytics, Desktop widget, Rate limit notifications, Global hotkey, CSV export, Homebrew install",
-        "screenshot": "https://claudegod.app",
         "softwareHelp": {
             "@type": "CreativeWork",
             "url": "https://github.com/Lcharvol/Claude-God#readme"
@@ -512,64 +511,6 @@
         }
 
         /* ============================================
-           MENU BAR MOCKUP
-           ============================================ */
-
-        .mockup-section {
-            position: relative;
-            z-index: 2;
-            margin-top: 4rem;
-            animation: fade-up 0.8s ease 0.5s both;
-        }
-
-        .screenshots-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1.5rem;
-            max-width: 780px;
-            margin: 0 auto;
-        }
-
-        .screenshot-card {
-            position: relative;
-            border-radius: 14px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            background: var(--surface);
-            box-shadow:
-                0 25px 80px rgba(0,0,0,0.4),
-                0 0 60px rgba(167,139,250,0.06);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .screenshot-card:hover {
-            transform: translateY(-4px);
-            box-shadow:
-                0 30px 90px rgba(0,0,0,0.5),
-                0 0 80px rgba(167,139,250,0.1);
-        }
-
-        .screenshot-card img {
-            width: 100%;
-            height: auto;
-            display: block;
-        }
-
-        .screenshot-label {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 0.6rem 0.8rem;
-            background: linear-gradient(transparent, rgba(0,0,0,0.7));
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: rgba(255,255,255,0.9);
-        }
-
-        /* Old mockup CSS removed — now using real screenshots */
-
-        /* ============================================
            FEATURES
            ============================================ */
 
@@ -872,9 +813,6 @@
             .section-title { font-size: clamp(1.5rem, 5vw, 2rem); }
             .section-desc { font-size: 0.9rem; }
 
-            .screenshots-grid { grid-template-columns: 1fr; max-width: 380px; }
-            .mockup-section { margin-top: 2.5rem; }
-
             .oss-stats { gap: 1rem; flex-wrap: wrap; justify-content: center; }
             .oss-stat .num { font-size: 1.5rem; }
             .oss-banner { padding: 2rem 1.25rem; }
@@ -895,8 +833,6 @@
             .hero-install .install-cmd { font-size: 0.58rem; }
 
             .nav-cta { font-size: 0.78rem; padding: 0.5rem 1rem; }
-
-            .screenshots-grid { gap: 1rem; }
 
             .oss-stats { gap: 0.75rem; }
             .oss-stat .num { font-size: 1.25rem; }
@@ -977,35 +913,6 @@
         </p>
     </div>
 
-    <!-- Screenshots -->
-    <div class="mockup-section">
-        <div class="screenshots-grid">
-            <div class="screenshot-card">
-                <img src="images/screenshot-usage.png" alt="Usage tab — quota gauges, burn rate, live session cost" loading="lazy">
-                <div class="screenshot-label">Usage</div>
-            </div>
-            <div class="screenshot-card">
-                <img src="images/screenshot-analytics.png" alt="Analytics tab — cost breakdown, sparkline, model usage" loading="lazy">
-                <div class="screenshot-label">Analytics</div>
-            </div>
-            <div class="screenshot-card">
-                <img src="images/screenshot-timeline.png" alt="Timeline tab — session history with topics and costs" loading="lazy">
-                <div class="screenshot-label">Timeline</div>
-            </div>
-            <div class="screenshot-card">
-                <img src="images/screenshot-roi.png" alt="ROI tab — return on investment per project" loading="lazy">
-                <div class="screenshot-label">ROI</div>
-            </div>
-            <div class="screenshot-card">
-                <img src="images/screenshot-extensions-discover.png" alt="Extensions tab — discover and install plugins" loading="lazy">
-                <div class="screenshot-label">Extensions</div>
-            </div>
-            <div class="screenshot-card">
-                <img src="images/screenshot-extensions-installed.png" alt="Extensions tab — manage installed plugins" loading="lazy">
-                <div class="screenshot-label">Installed</div>
-            </div>
-        </div>
-    </div>
 </section>
 
 <!-- FEATURES -->
