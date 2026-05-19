@@ -1,243 +1,167 @@
 <p align="center">
-  <img src="https://img.shields.io/github/v/release/Lcharvol/Claude-God?style=flat-square&color=8b6cf6&label=latest" alt="Release">
   <img src="https://img.shields.io/badge/macOS-13%2B-black?style=flat-square" alt="macOS 13+">
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?style=flat-square" alt="Swift 5.9">
-  <img src="https://img.shields.io/github/license/Lcharvol/Claude-God?style=flat-square&color=34d399" alt="MIT License">
-  <a href="https://github.com/Lcharvol/Claude-God/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Lcharvol/Claude-God/ci.yml?style=flat-square&label=CI" alt="CI"></a>
+  <img src="https://img.shields.io/github/license/Sunrise-Labs-Dot-AI/SubMaxxing?style=flat-square&color=34d399" alt="MIT License">
 </p>
 
-<h1 align="center">
-  SubMaxxing
-</h1>
+<h1 align="center">SubMaxxing</h1>
 
 <p align="center">
-  <strong>Monitor your Claude AI usage from the macOS menu bar.</strong><br>
-  Real-time quotas, cost analytics, burn rate prediction, project breakdown.<br>
-  Free, open source, zero dependencies.
+  <strong>A macOS menu bar monitor for Claude and Codex usage.</strong><br>
+  Quotas, session history, API-equivalent cost analytics, project breakdowns, and subscription-aware planning.
 </p>
 
 <p align="center">
-  <img src="assets/screenshot-usage.png" width="320" alt="Usage — quota cards with progress bars">
+  <img src="assets/screenshot-usage.png" width="320" alt="Usage tab with quota cards">
   &nbsp;&nbsp;
-  <img src="assets/screenshot-analytics.png" width="320" alt="Analytics — cost breakdown, sparkline, models">
+  <img src="assets/screenshot-analytics.png" width="320" alt="Analytics tab with costs, model breakdown, and trend chart">
 </p>
 <p align="center">
-  <img src="assets/screenshot-timeline.png" width="320" alt="Timeline — session history with topics and costs">
+  <img src="assets/screenshot-timeline.png" width="320" alt="Timeline tab with recent sessions">
   &nbsp;&nbsp;
-  <img src="assets/screenshot-roi.png" width="320" alt="ROI — return on investment analysis">
-</p>
-<p align="center">
-  <img src="assets/screenshot-extensions-discover.png" width="320" alt="Extensions — discover and install plugins">
-  &nbsp;&nbsp;
-  <img src="assets/screenshot-extensions-installed.png" width="320" alt="Extensions — manage installed plugins">
-</p>
-
-<p align="center">
-  <a href="https://github.com/Lcharvol/Claude-God/releases/latest/download/SubMaxxing.dmg"><strong>Download .dmg</strong></a> &nbsp;&middot;&nbsp;
-  <a href="https://claudegod.app">Website</a> &nbsp;&middot;&nbsp;
-  <a href="https://github.com/Lcharvol/Claude-God/releases">Changelog</a>
+  <img src="assets/screenshot-roi.png" width="320" alt="ROI tab with project and commit analysis">
 </p>
 
 ---
 
-## Features
+## What It Does
 
-| | Feature | Description |
-|---|---|---|
-| **Quotas** | Progress bars | Animated bars for session (5h), weekly, Sonnet & Opus quotas |
-| | Dynamic icon | Menu bar icon turns green/orange/red based on worst quota |
-| | Live countdown | Real-time timer showing when quotas reset |
-| | Burn rate | Predicts when you'll hit the limit based on current velocity |
-| | Model advisor | Smart tips when quota imbalance is detected |
-| **Analytics** | Cost tracking | Daily, weekly, monthly cost breakdown from JSONL session files |
-| | Project breakdown | Per-project cost and session count |
-| | Session history | Recent conversations with topic, duration, cost, model |
-| | Sparkline chart | Interactive usage trend (7/14/30 days) with hover tooltips |
-| | Model breakdown | Per-model cost and token usage with totals |
-| | Daily budget | Set a $/day target with progress tracking |
-| | Export CSV | Save daily cost & token data as CSV |
-| | Copy stats | One-click copy of formatted stats to clipboard |
-| **Live** | Active session | Detects when Claude Code is running (green dot) |
-| | Auto-credentials | File watcher auto-detects `claude login` |
-| | Reset notification | Get notified when quotas reset |
-| **Settings** | Auto-refresh | Configurable interval (1, 2, 5, 10 min) |
-| | Menu bar modes | Icon only, Session %, Timer, All quotas |
-| | Compact mode | Minimal UI showing just percentages |
-| | Notifications | Alert when usage exceeds configurable threshold |
-| | Launch at login | Start automatically with macOS |
-| **Extensions** | Plugin marketplace | Browse, search, and install Claude Code plugins directly from the app |
-| | Category filter | Filter plugins by category (Development, Productivity, Database, etc.) |
-| | Install counts | See plugin popularity with download stats |
-| | Manage plugins | Toggle enabled/disabled, uninstall, check for updates |
-| | Plugin UI | Installed plugins with custom UI (e.g. claude-mem) open inline detail views |
-| **Design** | shadcn/ui style | Flat, minimal, bordered cards with hover effects |
-| | Dark & Light | Adapts to system appearance automatically |
-| | Accessibility | VoiceOver labels on all interactive elements |
+SubMaxxing helps you understand how much AI work you are routing through local tools, especially when usage is hidden behind subscription plans.
 
-> **No API key needed.** Uses your existing `claude login` credentials. Works with Pro & Max plans. Completely free.
+It currently tracks:
 
----
+| Area | What you get |
+|---|---|
+| Claude usage | Session, weekly, Sonnet, Opus, and Claude Design quota windows from your existing Claude login |
+| Codex usage | Codex-side quota windows plus analytics parsed from `~/.codex/sessions/**/*.jsonl` |
+| Analytics | Today, 7-day, and 30-day API-equivalent costs, messages, tokens, cache hits, models, projects, and trends |
+| Timeline | Claude session history with topic, duration, model, and cost estimates |
+| ROI | Claude session-to-git analysis for local project work |
+| Extensions | Claude Code plugin discovery and management |
+| Menu bar | Compact status, live countdowns, activity rings, warnings, and a global `Option-Command-C` toggle |
+
+## Important: Analytics Are API-Equivalent
+
+SubMaxxing's cost analytics answer a specific question:
+
+> What would this usage have cost if it had been billed at published API token rates?
+
+That is not always the same as your actual bill.
+
+If you are using Claude Pro, Claude Max, ChatGPT Plus, Codex, or another subscription to fund most of this activity, the analytics should be read as API-equivalent replacement value or opportunity cost. They are useful for understanding volume, model mix, cache impact, project concentration, and whether a subscription is absorbing work that would otherwise be expensive at API rates.
+
+For Claude, the app also shows subscription and extra-usage planning where data is available. For Codex, transcript analytics currently use OpenAI API-equivalent pricing because local Codex session files expose token usage, not subscription allocation or true marginal cost.
+
+## Fork Acknowledgement
+
+SubMaxxing is a fork of [Claude God](https://github.com/Lcharvol/Claude-God) by Lucas Charvolin.
+
+The original project established the macOS menu bar app, Claude quota monitoring, Claude session analytics, timeline, ROI, extensions UI, widget support, and much of the SwiftUI foundation. This fork keeps that work intact while adapting the product direction, branding, repository ownership, and adding Codex-side analytics.
+
+The project remains MIT licensed. See [LICENSE](LICENSE).
 
 ## Quick Start
 
-### Homebrew (recommended)
+### Install
+
+The public release flow is still being cleaned up after the fork. For now, build from source:
 
 ```bash
-brew tap lcharvol/tap
-brew install --cask submaxxing
+git clone https://github.com/Sunrise-Labs-Dot-AI/SubMaxxing.git
+cd SubMaxxing
+brew install xcodegen
+make install
 ```
 
-### Manual
+`make install` builds the app, installs it to `/Applications/SubMaxxing.app`, signs it locally, and launches it.
+
+### Sign In
+
+For Claude quota data:
 
 ```bash
-# 1. Download & install
-open https://github.com/Lcharvol/Claude-God/releases/latest/download/SubMaxxing.dmg
-
-# 2. Allow unsigned app (required once)
-xattr -cr /Applications/Claude\ God.app
-```
-
-### Then
-
-```bash
-# Make sure you're logged in
 claude login
-
-# Launch — an "S" icon appears in the menu bar, press ⌥⌘C to toggle
-open /Applications/Claude\ God.app
 ```
 
----
+For Codex analytics, no extra sign-in is required. SubMaxxing reads local Codex session transcripts from:
+
+```text
+~/.codex/sessions/**/*.jsonl
+```
+
+Open the menu bar app with the `S`/`SM` icon or press `Option-Command-C`.
 
 ## How It Works
 
-**Quotas** — The app reads your OAuth credentials from `claude login` (Keychain or `~/.claude/.credentials.json`) and calls:
+### Claude Quotas
 
-```
+SubMaxxing reads your Claude OAuth credentials from Keychain or `~/.claude/.credentials.json`, then calls the Claude usage endpoint:
+
+```text
 GET https://api.anthropic.com/api/oauth/usage
 Authorization: Bearer <oauth_token>
 anthropic-beta: oauth-2025-04-20
 ```
 
-Returns utilization for each quota window (`five_hour`, `seven_day`, `seven_day_sonnet`, `seven_day_opus`). Tokens are refreshed automatically.
+It displays returned quota windows such as `five_hour`, `seven_day`, `seven_day_sonnet`, and `seven_day_opus`, with reset timers and threshold warnings.
 
-**Cost Analytics** — Parses all `~/.claude/projects/**/*.jsonl` session files to calculate costs per model using Anthropic's published pricing.
+### Claude Analytics
 
----
+Claude analytics parse local session files under:
 
-## Build from Source
-
-```bash
-git clone https://github.com/Lcharvol/Claude-God.git
-cd Claude-God
-brew install xcodegen    # one time
-make build               # or: make open (Xcode)
+```text
+~/.claude/projects/**/*.jsonl
 ```
 
-See [`Makefile`](Makefile) for all commands: `build`, `run`, `dmg`, `clean`.
+The parser estimates API-equivalent costs from token usage and published Anthropic model pricing, then aggregates by day, model, and project.
+
+### Codex Analytics
+
+Codex analytics parse local transcript files under:
+
+```text
+~/.codex/sessions/**/*.jsonl
+```
+
+The parser reads `token_count` events, uses `payload.info.last_token_usage`, accounts for cached input tokens separately, derives project names from working directories, and prices usage with OpenAI API-equivalent model rates. Unknown Codex models fall back to GPT-5 pricing and log a warning.
+
+## Development
+
+Common commands:
+
+```bash
+make build     # Build Release
+make run       # Build and run from the build directory
+make install   # Build, install to /Applications, sign locally, and launch
+make clean     # Remove generated build artifacts
+```
+
+The Xcode project is generated from `project.yml`; do not edit `SubMaxxing.xcodeproj` by hand.
 
 ## Project Structure
 
-```
+```text
 Sources/
-├── SubMaxxingApp.swift     # Entry point, MenuBarExtra
-├── UsageManager.swift       # OAuth, auto-refresh, notifications, budget, active session
-├── AuthManager.swift        # Credential loading, token refresh, file watcher
-├── UpdateChecker.swift      # GitHub releases auto-update
-├── HotkeyManager.swift      # Global ⌥⌘C hotkey (Carbon API)
-├── AppShortcuts.swift       # Shortcuts.app intents (Get Usage, Get Cost, Refresh)
-├── MenuBarView.swift        # UI: cards, stats, settings, heatmap, shadcn components
-├── SessionAnalyzer.swift    # JSONL parser, cost calculator, efficiency metrics
-└── Assets.xcassets/         # App icon
+├── SubMaxxingApp.swift       # App entry point and MenuBarExtra
+├── MenuBarView.swift         # Main SwiftUI popover UI
+├── UsageManager.swift        # Claude quotas, refresh, budgets, notifications
+├── CodexUsageManager.swift   # Codex quotas and analytics refresh
+├── SessionAnalyzer.swift     # Claude JSONL parser and pricing helpers
+├── CodexSessionAnalyzer.swift # Codex JSONL parser
+├── AuthManager.swift         # Claude credential loading and token refresh
+├── RingImageMaker.swift      # Menu bar activity-ring image renderer
+└── Assets.xcassets/          # App icon assets
+
 Widget/
-└── SubMaxxingWidget.swift    # WidgetKit — desktop quota gauges
+└── SubMaxxingWidget.swift    # WidgetKit desktop quota gauges
 ```
 
-**Zero external dependencies.** Foundation + SwiftUI + Combine + Security + UserNotifications + ServiceManagement.
+## Notes
 
-## Releasing
-
-```bash
-git tag v2.8.0 && git push origin v2.8.0
-# GitHub Actions builds the .dmg automatically
-```
-
-## Changelog
-
-### v2.22.0
-- **New**: Rings menu bar mode — Apple Watch-style concentric activity rings for up to 3 quotas, configurable picker + live preview, optional Timer ring ([#20](https://github.com/Lcharvol/Claude-God/pull/20))
-
-### v2.21.1
-- **Fixed**: Drastic energy savings — App Nap re-enabled, adaptive countdown, slower active-session polling, JSONL scan deferred to popover open ([#14](https://github.com/Lcharvol/Claude-God/issues/14))
-- **Fixed**: Widget extension now registers — added missing `NSExtensionPointIdentifier` ([#13](https://github.com/Lcharvol/Claude-God/issues/13))
-- **Fixed**: Resizable popover actually responds to drag — visible grip handle replaces the broken NSWindow wiring
-
-### v2.21.0
-- **New**: Session+Week menu bar mode — session %, reset countdown, and weekly % at a glance ([#15](https://github.com/Lcharvol/Claude-God/issues/15))
-- **New**: Resizable window with persisted height
-- **New**: Extra usage balance card + Claude Design quota row
-- **New**: Sign In button + opt-in auto-reconnect when OAuth token expires
-- **Fixed**: Usage tab flicker on expired token, long reset times shown as days/hours
-
-### v2.20.4
-- **Fixed**: Hardened refresh pipeline — every exit path clears loading state, credential reload timeouts, backoff counter auto-resets
-
-### v2.20.3
-- **Fixed**: Respect `Retry-After` header on 429, progressive backoff, token expiry pre-flight, Keychain fallback for credentials
-
-### v2.20.2
-- **Fixed**: App no longer gets stuck on "Rate limited" screen after `claude login` ([#5](https://github.com/Lcharvol/Claude-God/issues/5))
-- **Fixed**: Credential changes now trigger auto-refresh even when an error is displayed
-
-### v2.20.1
-- **Fixed**: Refresh no longer gets stuck — cancellable fetches, stale response detection, centralized state reset
-- **New**: Peak / off-peak indicator with countdown to transition
-
-### v2.19.0
-- **Perf**: JSONL parsing without Data→String roundtrip, SQLite 9→4 queries, widget skip unchanged, keychain off main thread
-
-### v2.18.0
-- **New**: GitHub, swift-lsp, code-review, code-simplifier, context7, playwright plugin detail views (9 total)
-- **Fixed**: Menu bar icon contrast, font sizes +1pt, wider window
-
-### v2.17.0
-- **New**: Superpowers plugin UI — browse skills, view plans with progress, design specs
-- **New**: Frontend Design plugin UI — design principles, aesthetic tones, anti-patterns, cookbook link
-
-### v2.16.0
-- **New**: Extensions tab with plugin marketplace — browse, install, and manage Claude Code plugins directly from the app
-- **New**: Featured plugin cards for plugins with custom UI (claude-mem opens inline Memory panel)
-
-### v2.15.0
-- **Fixed**: Memory tab now reads correct claude-mem schema (`observations` table)
-- **New**: Activity timeline, project summaries, Markdown export, delete observations, open files in Finder
-
-### v2.14.0
-- **New**: Memory tab — browse claude-mem persistent memories with search, project filter, and install guide
-
-### v2.13.1
-- **Fix**: OAuth token refresh no longer persists tokens — prevents daily 401 errors
-
-### v2.13.0
-- **Perf**: Single JSON decode per JSONL line, direct Data line splitting, single-pass file traversal, binary search for ROI matching
-
-### v2.12.0
-- **Improved**: Logging, error handling, forecasting, and exports
-
-### v2.11.0
-- **New**: ROI tab — correlates git commits with Claude sessions (cost/commit, per-project, per-model, 30-day trend)
-
-### v2.10.0
-- **New**: Updated model pricing, landing page SEO, download counter
-- **Fix**: Project cost truncation, mobile layout, 429 handling
-
-### v2.9.0
-- **Fix**: Token refresh race condition, notification spam, reset timer, CSV export, duplicate alert rules
-
-### v2.8.0
-- **New**: Desktop widget, usage heatmap, live session cost, per-project budgets, Shortcuts.app, multi-account, custom alerts
-
-[Full changelog →](CHANGELOG.md)
+- The app is local-first and reads local session files for analytics.
+- API-equivalent cost estimates are designed for planning and comparison, not accounting.
+- No new runtime dependencies are required beyond Apple's frameworks.
+- Release metadata and distribution links are still being reconciled after the fork.
 
 ## License
 
