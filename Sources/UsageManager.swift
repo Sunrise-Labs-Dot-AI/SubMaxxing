@@ -403,6 +403,15 @@ class UsageManager: ObservableObject {
         }
     }
 
+    /// User's monthly subscription cost (USD). When > 0, the popover replaces
+    /// the misleading API-equivalent "Projected this month" figure with an
+    /// honest actual-bill estimate. Set via the Settings view.
+    @Published var subscriptionMonthlyPrice: Double {
+        didSet {
+            UserDefaults.standard.set(subscriptionMonthlyPrice, forKey: UDKey.subscriptionMonthlyPrice)
+        }
+    }
+
     // MARK: - Ring stat options (quotas + virtual timer)
 
     /// Virtual quota: fraction of the 5-hour session window elapsed.
@@ -884,6 +893,77 @@ class UsageManager: ObservableObject {
         return nil
     }
 
+    // MARK: - Estimated actual bill (personal-fork addition)
+
+    /// Estimate of the actual dollar amount Anthropic will bill this month:
+    /// subscription fee + projected Extra usage overage. Returns nil when
+    /// the user hasn't entered their subscription price yet — in that case
+    /// the popover falls back to relabeling the existing API-equivalent
+    /// figure rather than guessing.
+    ///
+    /// Math:
+    /// - Subscription portion: `subscriptionMonthlyPrice` (user-entered).
+    /// - Weekly allocation in $: back-derived from current state as
+    ///   `currentWeekCost / (weeklyUtil/100)`. This is what 100% weekly
+    ///   utilization is "worth" in API-equivalent dollars.
+    /// - Each completed week of this month: overage = max(0, week_cost − allocation).
+    /// - Current (partial) week: use the Weekly outage forecast's projected
+    ///   Extra-usage cost (estimatedExtraUsageCost equivalent, recomputed
+    ///   inline here to keep the formula explicit).
+    /// - Future weeks of this month: project current-week overage forward,
+    ///   scaled by remaining weeks. Assumes similar pattern continues.
+    var estimatedBillThisMonth: (subscription: Double, extraUsage: Double, total: Double)? {
+        guard subscriptionMonthlyPrice > 0 else { return nil }
+        let cal = Calendar.current
+        let now = Date()
+        let today = cal.startOfDay(for: now)
+        guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: today)),
+              let daysInMonth = cal.range(of: .day, in: .month, for: today)?.count
+        else { return nil }
+
+        // Back-derive weekly allocation in $ from current weekly utilization.
+        guard let weekly = quotas.first(where: { $0.label.contains("Weekly") }),
+              weekly.utilization > 5,
+              weekStats.totalCost > 0
+        else { return (subscription: subscriptionMonthlyPrice, extraUsage: 0, total: subscriptionMonthlyPrice) }
+        let weeklyAllocation = weekStats.totalCost / (weekly.utilization / 100.0)
+
+        // Overage accumulated in completed weeks of the current month.
+        // Walk daily costs grouped by week-of-month.
+        let monthDailies = monthStats.daily.filter { $0.date >= monthStart && $0.date < today }
+        var weekBuckets: [Int: Double] = [:]
+        for d in monthDailies {
+            let weekOfMonth = cal.component(.weekOfMonth, from: d.date)
+            weekBuckets[weekOfMonth, default: 0] += d.cost
+        }
+        let accumulatedOverage = weekBuckets.values.reduce(0.0) { acc, weekCost in
+            acc + max(0, weekCost - weeklyAllocation)
+        }
+
+        // Current-week overage projection: if a Weekly outage is forecast,
+        // its offline-duration × current hourly rate ≈ Extra-usage exposure.
+        var currentWeekOverage = 0.0
+        if let weeklyForecast = allOutageForecasts.first(where: { $0.window == "Weekly" }),
+           let weeklyResetsAt = weekly.resetsAt {
+            let weekStart = weeklyResetsAt.addingTimeInterval(-7 * 24 * 3600)
+            let elapsedHours = now.timeIntervalSince(weekStart) / 3600
+            if elapsedHours > 1 {
+                let costPerHour = weekStats.totalCost / elapsedHours
+                currentWeekOverage = costPerHour * (weeklyForecast.offlineDuration / 3600)
+            }
+        }
+
+        // Future-week overage: extrapolate current-week pattern across the
+        // remaining (~4.33 weeks/month - weeks_observed) full weeks.
+        let dayOfMonth = cal.component(.day, from: today)
+        let weeksRemainingInMonth = max(0.0, Double(daysInMonth - dayOfMonth) / 7.0)
+        let projectedFutureOverage = currentWeekOverage * weeksRemainingInMonth
+
+        let extraUsage = accumulatedOverage + currentWeekOverage + projectedFutureOverage
+        let total = subscriptionMonthlyPrice + extraUsage
+        return (subscription: subscriptionMonthlyPrice, extraUsage: extraUsage, total: total)
+    }
+
     // MARK: - Monthly cost forecast
 
     var monthlyForecast: (projected: Double, daysRemaining: Int)? {
@@ -994,6 +1074,7 @@ class UsageManager: ObservableObject {
         let savedDisplayMode = ud.integer(forKey: UDKey.menuBarDisplayMode)
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: savedDisplayMode) ?? .percentageAndTimer
         self.dailyBudget = ud.double(forKey: UDKey.dailyBudget)
+        self.subscriptionMonthlyPrice = ud.double(forKey: UDKey.subscriptionMonthlyPrice)
 
         // Load ring stat labels for Icon+ mode
         if let data = ud.data(forKey: UDKey.ringStatLabels),

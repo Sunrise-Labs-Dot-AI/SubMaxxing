@@ -421,6 +421,40 @@ struct MenuBarView: View {
                 }
             }
 
+            // Subscription monthly price (personal-fork addition).
+            // When set, the popover's "Projected this month" is replaced
+            // with an actual bill estimate (subscription + Extra usage).
+            SHCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    SHLabel("Subscription monthly price")
+                    HStack(spacing: 8) {
+                        Text("$")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.secondary)
+                        TextField("Not set", value: Binding(
+                            get: { manager.subscriptionMonthlyPrice > 0 ? manager.subscriptionMonthlyPrice : nil },
+                            set: { manager.subscriptionMonthlyPrice = $0 ?? 0 }
+                        ), format: .number.precision(.fractionLength(0...2)))
+                            .font(.system(size: 12, design: .monospaced))
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 70)
+                        Text("/ month")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        if manager.subscriptionMonthlyPrice > 0 {
+                            SHButton(label: "Clear", style: .ghost) {
+                                manager.subscriptionMonthlyPrice = 0
+                            }
+                        }
+                    }
+                    Text("When set, replaces the misleading API-equivalent monthly projection with an estimated actual bill: subscription + projected Extra usage overage.")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             // Menu bar display
             SHCard {
                 VStack(alignment: .leading, spacing: 8) {
@@ -1199,19 +1233,61 @@ struct MenuBarView: View {
             // inline below each quota card via outageStrip() or the "Resets in"
             // line, which is contextual rather than duplicative.
 
-            // Monthly cost forecast
-            if let forecast = manager.monthlyForecast {
-                HStack(spacing: 6) {
-                    Image(systemName: "chart.line.uptrend.xyaxis")
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.blue)
-                    Text("Projected this month")
-                        .font(.system(size: 11))
+            // Monthly cost projection — personal-fork rework.
+            // When the user has configured a subscription price, show the
+            // actual estimated bill (subscription + projected Extra usage).
+            // Otherwise show the API-equivalent figure with a clear label
+            // so it's not mistaken for the real bill.
+            if let bill = manager.estimatedBillThisMonth {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "creditcard.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.blue)
+                        Text("Estimated bill this month")
+                            .font(.system(size: 11, weight: .semibold))
+                        Spacer()
+                        Text(formatCost(bill.total))
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundColor(.blue)
+                    }
+                    Text("Subscription \(formatCost(bill.subscription)) + Extra usage est. \(formatCost(bill.extraUsage))")
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
-                    Spacer()
-                    Text(formatCost(forecast.projected))
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundColor(.blue)
+                    if let forecast = manager.monthlyForecast {
+                        Text("API-equivalent total: \(formatCost(forecast.projected)) (what you'd pay without subscription)")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                        .strokeBorder(Color.blue.opacity(0.15), lineWidth: 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.radius, style: .continuous)
+                                .fill(Color.blue.opacity(0.05))
+                        )
+                )
+            } else if let forecast = manager.monthlyForecast {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.blue)
+                        Text("Projected this month (API-equivalent)")
+                            .font(.system(size: 11))
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Text(formatCost(forecast.projected))
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundColor(.blue)
+                    }
+                    Text("Your actual bill = subscription + Extra usage. Set your subscription price in Settings for a real estimate.")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)

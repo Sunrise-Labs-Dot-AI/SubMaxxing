@@ -27,6 +27,11 @@ enum UDKey {
     static let widgetLastUpdate = "widgetLastUpdate"
     static let windowHeight = "windowHeight"
     static let ringStatLabels = "ringStatLabels"
+    /// Personal-fork addition. Stored Double = user's monthly subscription
+    /// cost. When > 0, the popover replaces the misleading API-equivalent
+    /// "Projected this month" figure with an actual bill estimate
+    /// (subscription + projected Extra usage overage).
+    static let subscriptionMonthlyPrice = "subscriptionMonthlyPrice"
 }
 
 // MARK: - Logging
