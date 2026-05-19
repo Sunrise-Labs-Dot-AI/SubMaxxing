@@ -70,7 +70,7 @@ struct RingSettingsPreview: View {
             // Ring diagram
             ZStack {
                 if rings.isEmpty {
-                    Image(systemName: "c.circle")
+                    Image(systemName: "s.circle")
                         .font(.system(size: 28))
                         .foregroundColor(.secondary)
                 } else {

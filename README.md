@@ -103,7 +103,7 @@ xattr -cr /Applications/Claude\ God.app
 # Make sure you're logged in
 claude login
 
-# Launch — a "C" icon appears in the menu bar, press ⌥⌘C to toggle
+# Launch — an "S" icon appears in the menu bar, press ⌥⌘C to toggle
 open /Applications/Claude\ God.app
 ```
 

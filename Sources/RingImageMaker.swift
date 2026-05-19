@@ -16,17 +16,17 @@ enum RingImageMaker {
     ]
 
     // ── Layout ──
-    // Rings are thinner than the original to carve out a center well for the "C".
+    // Rings are thinner than the original to carve out a center well for the "S".
     // With size=20, lineWidth=1.5, step=2.5:
     //   ring 0: radius 9.25  (outer)
     //   ring 1: radius 6.75  (mid)
-    //   ring 2: radius 4.25  (inner)  → clear centre ≈ Ø7 pt → fits a 6-pt "C"
+    //   ring 2: radius 4.25  (inner)  → clear centre ≈ Ø7 pt → fits a 6-pt "S"
     private static let size:      CGFloat = 20
     private static let lineWidth: CGFloat = 1.5
     private static let step:      CGFloat = 2.5
 
     /// Returns a 20×20-point NSImage with 1–3 concentric activity rings and
-    /// a small "C" centred inside them. Falls back to the "c.circle" SF Symbol
+    /// a small "S" centred inside them. Falls back to the "s.circle" SF Symbol
     /// when no stats are resolved.
     static func image(quotas: [UsageQuota], labels: [String]) -> NSImage {
         let rings: [(progress: Double, color: NSColor)] = labels.prefix(3)
@@ -92,13 +92,13 @@ enum RingImageMaker {
                 arc.stroke()
             }
 
-            // ── "C" in the centre ──
+            // ── "S" in the centre ──
             // labelColor resolves to black on light menubar, white on dark.
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 6.0, weight: .bold),
                 .foregroundColor: NSColor.labelColor,
             ]
-            let str = "C" as NSString
+            let str = "S" as NSString
             let strSize = str.size(withAttributes: attrs)
             // In y-up coords, rect.origin.y is the bottom of the text bounding box
             let strRect = NSRect(
@@ -118,7 +118,7 @@ enum RingImageMaker {
 
     private static func fallbackImage() -> NSImage {
         let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .regular)
-        return NSImage(systemSymbolName: "c.circle",
+        return NSImage(systemSymbolName: "s.circle",
                        accessibilityDescription: nil)?
             .withSymbolConfiguration(config) ?? NSImage()
     }

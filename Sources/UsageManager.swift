@@ -55,12 +55,12 @@ enum MenuBarDisplayMode: Int, CaseIterable, Identifiable {
 
     var description: String {
         switch self {
-        case .iconOnly: return "C"
+        case .iconOnly: return "S"
         case .rings: return "◎ activity rings"
-        case .percentage: return "C 15%"
-        case .percentageAndTimer: return "C 15% · 2h31m"
-        case .allQuotas: return "C 15% | 31% | 22%"
-        case .sessionTimerAndWeek: return "C 15% · 2h31m | W 31%"
+        case .percentage: return "S 15%"
+        case .percentageAndTimer: return "S 15% · 2h31m"
+        case .allQuotas: return "S 15% | 31% | 22%"
+        case .sessionTimerAndWeek: return "S 15% · 2h31m | W 31%"
         }
     }
 
@@ -582,11 +582,11 @@ class UsageManager: ObservableObject {
     }
 
     var menuBarIcon: String {
-        guard let q = worstQuota else { return "c.circle" }
+        guard let q = worstQuota else { return "s.circle" }
         switch q.level {
-        case .critical: return "c.circle.fill"
-        case .warning: return "c.circle.fill"
-        case .good: return "c.circle"
+        case .critical: return "s.circle.fill"
+        case .warning: return "s.circle.fill"
+        case .good: return "s.circle"
         }
     }
 

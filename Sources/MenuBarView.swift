@@ -170,8 +170,8 @@ struct MenuBarView: View {
                 .fill(Theme.accent)
                 .frame(width: 26, height: 26)
                 .overlay(
-                    Text("C")
-                        .font(.system(size: 13, weight: .heavy))
+                    Text("SM")
+                        .font(.system(size: 10, weight: .heavy))
                         .foregroundColor(.white)
                 )
 

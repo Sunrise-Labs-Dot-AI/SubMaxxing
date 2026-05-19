@@ -62,7 +62,7 @@ struct SubMaxxingShortcuts: AppShortcutsProvider {
                 "Show Claude quotas with \(.applicationName)"
             ],
             shortTitle: "Claude Usage",
-            systemImageName: "c.circle"
+            systemImageName: "s.circle"
         )
         AppShortcut(
             intent: GetCostIntent(),
