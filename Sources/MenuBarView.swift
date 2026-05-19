@@ -1607,6 +1607,206 @@ struct MenuBarView: View {
         }
     }
 
+    private var codexStatsView: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "chart.bar.xaxis")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.secondary)
+                Text("OpenAI Codex")
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                if codexManager.isLoadingStats {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+                Button(action: { codexManager.refreshStats() }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .help("Refresh Codex analytics")
+            }
+
+            if codexManager.monthStats.totalMessages == 0 {
+                VStack(spacing: 10) {
+                    if codexManager.isLoadingStats {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "chart.bar")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(.secondary.opacity(0.5))
+                    }
+                    Text(codexManager.isLoadingStats ? "Loading Codex analytics..." : "No Codex session data found")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.secondary)
+                    Text("Analytics appear after using Codex CLI.\nData is read from ~/.codex/sessions/")
+                        .font(.system(size: 11))
+                        .foregroundColor(.secondary.opacity(0.7))
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 20)
+            } else {
+                HStack(spacing: 6) {
+                    SHStatCard(label: "Today", value: formatCost(codexManager.todayStats.totalCost), sub: "\(codexManager.todayStats.totalMessages) msgs")
+                    SHStatCard(label: "7 days", value: formatCost(codexManager.weekStats.totalCost), sub: "\(codexManager.weekStats.totalMessages) msgs")
+                    SHStatCard(
+                        label: "30 days",
+                        value: formatCost(codexManager.monthStats.totalCost),
+                        sub: "\(codexManager.monthStats.totalMessages) msgs · \(codexManager.monthStats.sessionCount) sessions"
+                    )
+                }
+
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary.opacity(0.7))
+                    Text("API-equivalent cost — actual billing is your subscription")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary.opacity(0.7))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 2)
+
+                if codexManager.monthStats.daily.count >= 2 {
+                    SHCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                SHLabel("Usage Trend")
+                                Spacer()
+                                Text("\(dailyRange) days")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.secondary)
+                            }
+                            SparklineView(
+                                data: Array(codexManager.monthStats.daily.prefix(dailyRange).reversed().map(\.cost)),
+                                labels: Array(codexManager.monthStats.daily.prefix(dailyRange).reversed().map(\.dateLabel))
+                            )
+                            .frame(height: 50)
+                        }
+                    }
+                }
+
+                if !codexManager.monthStats.byModel.isEmpty {
+                    SHCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            SHLabel("Models")
+                            ForEach(codexManager.monthStats.aggregatedModels) { model in
+                                HStack(spacing: 6) {
+                                    Circle()
+                                        .fill(colorForModel(model.model))
+                                        .frame(width: 6, height: 6)
+                                    Text(model.shortName)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .frame(width: 92, alignment: .leading)
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text(formatTokens(model.tokens.totalTokens))
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                    Text(formatCostCompact(model.cost))
+                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                        .frame(width: 64, alignment: .trailing)
+                                        .lineLimit(1)
+                                }
+                            }
+                            SHDivider()
+                            HStack(spacing: 6) {
+                                Text("Total")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .frame(width: 98, alignment: .leading)
+                                Spacer()
+                                Text(formatTokens(codexManager.monthStats.totalTokens.totalTokens))
+                                    .font(.system(size: 11, design: .monospaced))
+                                    .foregroundColor(.secondary)
+                                Text(formatCostCompact(codexManager.monthStats.totalCost))
+                                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                    .frame(width: 64, alignment: .trailing)
+                                    .lineLimit(1)
+                            }
+                        }
+                    }
+                }
+
+                if !codexManager.monthStats.byProject.isEmpty {
+                    SHCard {
+                        VStack(alignment: .leading, spacing: 8) {
+                            SHLabel("Projects")
+                            ForEach(codexManager.monthStats.byProject.prefix(5)) { project in
+                                HStack(spacing: 6) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(Theme.accent.opacity(0.6))
+                                    Text(project.projectName)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text("\(project.totalMessages) msgs")
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundColor(.secondary)
+                                    Text(formatCostCompact(project.totalCost))
+                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                        .lineLimit(1)
+                                        .fixedSize()
+                                }
+                                .help("\(project.projectName): \(project.sessionCount) sessions · \(project.totalMessages) messages · \(formatCost(project.totalCost))")
+                            }
+                        }
+                    }
+                }
+
+                if !codexManager.monthStats.daily.isEmpty {
+                    SHCard {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                SHLabel("Daily")
+                                Spacer()
+                                Picker("Range", selection: $dailyRange) {
+                                    Text("7d").tag(7)
+                                    Text("14d").tag(14)
+                                    Text("30d").tag(30)
+                                }
+                                .labelsHidden()
+                                .pickerStyle(.segmented)
+                                .frame(width: 120)
+                                .controlSize(.mini)
+                            }
+                            ForEach(codexManager.monthStats.daily.prefix(dailyRange)) { day in
+                                HStack(spacing: 6) {
+                                    Text(day.dateLabel)
+                                        .font(.system(size: 11, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 60, alignment: .leading)
+
+                                    GeometryReader { geo in
+                                        ZStack(alignment: .leading) {
+                                            RoundedRectangle(cornerRadius: 2).fill(Theme.muted)
+                                            RoundedRectangle(cornerRadius: 2)
+                                                .fill(Theme.accent.opacity(0.55))
+                                                .frame(width: max(2, geo.size.width * CGFloat(day.cost / maxCodexDailyCost)))
+                                        }
+                                    }
+                                    .frame(height: 4)
+
+                                    Text(formatCost(day.cost))
+                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                        .frame(width: 56, alignment: .trailing)
+                                        .lineLimit(1)
+                                }
+                                .help("\(day.dateLabel): \(formatCost(day.cost)) · \(day.messageCount) msgs · \(formatTokens(day.tokens.totalTokens)) tokens")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .onAppear {
+            codexManager.refreshStatsIfStale()
+        }
+    }
+
     // MARK: - Compact usage
 
     private var compactUsageView: some View {
@@ -2220,6 +2420,10 @@ struct MenuBarView: View {
 
     private var maxDailyCost: Double {
         manager.monthStats.daily.prefix(dailyRange).map(\.cost).max() ?? 1
+    }
+
+    private var maxCodexDailyCost: Double {
+        codexManager.monthStats.daily.prefix(dailyRange).map(\.cost).max() ?? 1
     }
 
     // MARK: - Timeline
@@ -4300,9 +4504,14 @@ struct MenuBarView: View {
     }
 
     private func colorForModel(_ model: String) -> Color {
-        if model.contains("opus") { return Theme.accent }
-        if model.contains("sonnet") { return .blue }
-        if model.contains("haiku") { return .green }
+        let m = model.lowercased()
+        if m.contains("opus") { return Theme.accent }
+        if m.contains("sonnet") { return .blue }
+        if m.contains("haiku") { return .green }
+        if m.contains("gpt-5.5") { return .purple }
+        if m.contains("gpt-5") { return Theme.accent }
+        if m.contains("gpt-4o") { return .blue }
+        if m.contains("o4") || m.contains("o3") { return .orange }
         return .gray
     }
 
