@@ -27,10 +27,14 @@ enum UDKey {
     static let widgetLastUpdate = "widgetLastUpdate"
     static let windowHeight = "windowHeight"
     static let ringStatLabels = "ringStatLabels"
-    /// Personal-fork addition. Stored Double = user's monthly subscription
-    /// cost. When > 0, the popover replaces the misleading API-equivalent
-    /// "Projected this month" figure with an actual bill estimate
-    /// (subscription + projected Extra usage overage).
+    /// Personal-fork addition. Per-provider subscription prices (USD/mo).
+    /// Used by the bill estimator to compute the real expected bill instead
+    /// of the misleading API-equivalent monthly projection. Manual entry —
+    /// auto-detection from plan_type proved unreliable across tiers.
+    static let anthropicSubscriptionPrice = "anthropicSubscriptionPrice"
+    static let openaiSubscriptionPrice = "openaiSubscriptionPrice"
+    /// Catch-all for any non-Anthropic, non-OpenAI recurring AI subscription
+    /// the user wants reflected in the bill estimate.
     static let subscriptionMonthlyPrice = "subscriptionMonthlyPrice"
 }
 

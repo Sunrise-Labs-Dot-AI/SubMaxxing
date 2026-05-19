@@ -421,35 +421,39 @@ struct MenuBarView: View {
                 }
             }
 
-            // Subscription monthly price (personal-fork addition).
-            // When set, the popover's "Projected this month" is replaced
-            // with an actual bill estimate (subscription + Extra usage).
+            // Subscription prices — personal-fork addition. Three explicit
+            // fields (Anthropic, OpenAI, Other) summed for the bill estimate.
+            // Replaces the prior single field + broken auto-inference that
+            // mis-priced plans across tiers.
             SHCard {
-                VStack(alignment: .leading, spacing: 8) {
-                    SHLabel("Subscription monthly price")
-                    HStack(spacing: 8) {
-                        Text("$")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.secondary)
-                        TextField("Not set", value: Binding(
+                VStack(alignment: .leading, spacing: 10) {
+                    SHLabel("Subscription prices (for bill estimate)")
+                    subscriptionPriceRow(
+                        label: "Claude (Anthropic)",
+                        hint: manager.inferredAnthropicPlan?.name,
+                        value: Binding(
+                            get: { manager.anthropicSubscriptionPrice > 0 ? manager.anthropicSubscriptionPrice : nil },
+                            set: { manager.anthropicSubscriptionPrice = $0 ?? 0 }
+                        )
+                    )
+                    subscriptionPriceRow(
+                        label: "ChatGPT (OpenAI)",
+                        hint: codexManager.inferredOpenAIPlan?.name,
+                        value: Binding(
+                            get: { manager.openaiSubscriptionPrice > 0 ? manager.openaiSubscriptionPrice : nil },
+                            set: { manager.openaiSubscriptionPrice = $0 ?? 0 }
+                        )
+                    )
+                    subscriptionPriceRow(
+                        label: "Other AI tools",
+                        hint: nil,
+                        value: Binding(
                             get: { manager.subscriptionMonthlyPrice > 0 ? manager.subscriptionMonthlyPrice : nil },
                             set: { manager.subscriptionMonthlyPrice = $0 ?? 0 }
-                        ), format: .number.precision(.fractionLength(0...2)))
-                            .font(.system(size: 12, design: .monospaced))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 70)
-                        Text("/ month")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Spacer()
-                        if manager.subscriptionMonthlyPrice > 0 {
-                            SHButton(label: "Clear", style: .ghost) {
-                                manager.subscriptionMonthlyPrice = 0
-                            }
-                        }
-                    }
-                    Text("When set, replaces the misleading API-equivalent monthly projection with an estimated actual bill: subscription + projected Extra usage overage.")
-                        .font(.system(size: 11))
+                        )
+                    )
+                    Text("Extra usage figures come from Anthropic's actual reported spend, not a back-derived estimate.")
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -703,6 +707,39 @@ struct MenuBarView: View {
                                 .foregroundColor(.orange)
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /// Per-provider subscription price input row used in Settings.
+    @ViewBuilder
+    private func subscriptionPriceRow(label: String, hint: String?, value: Binding<Double?>) -> some View {
+        HStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                if let h = hint {
+                    Text("Detected: \(h)")
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .frame(width: 130, alignment: .leading)
+            Text("$")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.secondary)
+            TextField("Not set", value: value, format: .number.precision(.fractionLength(0...2)))
+                .font(.system(size: 12, design: .monospaced))
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 70)
+            Text("/ mo")
+                .font(.system(size: 11))
+                .foregroundColor(.secondary)
+            Spacer()
+            if value.wrappedValue != nil {
+                SHButton(label: "Clear", style: .ghost) {
+                    value.wrappedValue = nil
                 }
             }
         }

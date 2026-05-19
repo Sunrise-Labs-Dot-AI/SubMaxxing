@@ -478,20 +478,33 @@ class UsageManager: ObservableObject {
         }
     }
 
-    /// Manual override / supplement (USD/mo) for any subscription cost not
-    /// captured by inferred plans (e.g., team upgrades, other LLM tools).
-    /// Summed with `inferredAnthropicPlan.monthlyPrice` and the Codex side's
-    /// inferred plan price to produce the final subscription component of
-    /// the estimated bill.
+    /// Anthropic monthly subscription price (USD). User-entered. Combined
+    /// with `openaiSubscriptionPrice` and `subscriptionMonthlyPrice` (catch-
+    /// all) to drive the bill estimator.
+    @Published var anthropicSubscriptionPrice: Double {
+        didSet {
+            UserDefaults.standard.set(anthropicSubscriptionPrice, forKey: UDKey.anthropicSubscriptionPrice)
+        }
+    }
+
+    /// OpenAI / ChatGPT monthly subscription price (USD). User-entered.
+    @Published var openaiSubscriptionPrice: Double {
+        didSet {
+            UserDefaults.standard.set(openaiSubscriptionPrice, forKey: UDKey.openaiSubscriptionPrice)
+        }
+    }
+
+    /// Other recurring AI subscriptions (USD/mo). Catch-all.
     @Published var subscriptionMonthlyPrice: Double {
         didSet {
             UserDefaults.standard.set(subscriptionMonthlyPrice, forKey: UDKey.subscriptionMonthlyPrice)
         }
     }
 
-    /// Inferred Anthropic subscription from the most recent API plan_type.
-    /// Updated whenever a new OAuth usage response is parsed. `nil` until
-    /// the first successful response (or if plan_type is missing / unknown).
+    /// Inferred plan from API (kept as a hint shown next to the input).
+    /// Does NOT auto-fill the price field — Anthropic's plan_type strings
+    /// proved unreliable across tiers, and the price-per-tier varies
+    /// (annual prepay, enterprise, beta tiers, etc.).
     @Published var inferredAnthropicPlan: SubscriptionPlan?
 
     // MARK: - Ring stat options (quotas + virtual timer)
@@ -994,19 +1007,34 @@ class UsageManager: ObservableObject {
     ///   inline here to keep the formula explicit).
     /// - Future weeks of this month: project current-week overage forward,
     ///   scaled by remaining weeks. Assumes similar pattern continues.
-    /// Composite subscription cost: inferred Anthropic + inferred OpenAI +
-    /// manual override. Used by the bill estimator.
+    /// Composite subscription cost from user-entered prices. Replaces the
+    /// earlier "inferred from plan_type" approach which produced wrong
+    /// prices (plan_type strings don't map 1:1 to tiers across plans).
+    /// The inferred plan is still computed and exposed as a hint, but
+    /// pricing comes from the user's explicit Settings entries.
     func totalInferredSubscription(includingCodex codex: CodexUsageManager) -> (total: Double, breakdown: [SubscriptionPlan]) {
         var breakdown: [SubscriptionPlan] = []
-        if let a = inferredAnthropicPlan, a.monthlyPrice > 0 {
-            breakdown.append(a)
+        if anthropicSubscriptionPrice > 0 {
+            let displayName = inferredAnthropicPlan?.name ?? "Claude"
+            breakdown.append(SubscriptionPlan(
+                name: displayName,
+                monthlyPrice: anthropicSubscriptionPrice,
+                provider: "Anthropic",
+                source: .manual
+            ))
         }
-        if let o = codex.inferredOpenAIPlan, o.monthlyPrice > 0 {
-            breakdown.append(o)
+        if openaiSubscriptionPrice > 0 {
+            let displayName = codex.inferredOpenAIPlan?.name ?? "ChatGPT"
+            breakdown.append(SubscriptionPlan(
+                name: displayName,
+                monthlyPrice: openaiSubscriptionPrice,
+                provider: "OpenAI",
+                source: .manual
+            ))
         }
         if subscriptionMonthlyPrice > 0 {
             breakdown.append(SubscriptionPlan(
-                name: "Manual override",
+                name: "Other AI tools",
                 monthlyPrice: subscriptionMonthlyPrice,
                 provider: "User",
                 source: .manual
@@ -1027,49 +1055,36 @@ class UsageManager: ObservableObject {
         return (subscription: subTotal, breakdown: breakdown, extraUsage: bill, total: subTotal + bill)
     }
 
-    /// Extra-usage projection for the current month — same math as before,
-    /// but separated so the inferred-plan path and any future composition
-    /// can share it.
+    /// Extra-usage projection for the current month, using ACTUAL data from
+    /// Anthropic's `extra_usage.used_credits` field instead of back-derived
+    /// estimates. Anthropic is the source of truth on what Extra usage has
+    /// actually cost; previous back-derivation (weeklyAllocation = cost /
+    /// utilization) was wrong because the subscription's API-equivalent
+    /// value cap is much higher than the subscription price.
+    ///
+    /// Math:
+    /// - actual = `extraUsage.usedCredits` / 100 (cents → dollars)
+    /// - if Extra usage isn't enabled: 0
+    /// - project to end of month: actual × (daysInMonth / daysElapsed)
+    /// - the projection assumes spend rate continues; conservative when
+    ///   the user hits Extra usage late in the month, optimistic when they
+    ///   hit it early. Acceptable middle ground; better than the prior math.
     private func computeExtraUsageMonthly() -> Double {
+        guard let extra = self.extraUsage, extra.isEnabled else { return 0 }
+        guard let usedCents = extra.usedCredits, usedCents > 0 else { return 0 }
+        let actualSoFar = usedCents / 100.0
+
         let cal = Calendar.current
-        let now = Date()
-        let today = cal.startOfDay(for: now)
-        guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: today)),
-              let daysInMonth = cal.range(of: .day, in: .month, for: today)?.count
-        else { return 0 }
-
-        guard let weekly = quotas.first(where: { $0.label.contains("Weekly") }),
-              weekly.utilization > 5,
-              weekStats.totalCost > 0
-        else { return 0 }
-        let weeklyAllocation = weekStats.totalCost / (weekly.utilization / 100.0)
-
-        let monthDailies = monthStats.daily.filter { $0.date >= monthStart && $0.date < today }
-        var weekBuckets: [Int: Double] = [:]
-        for d in monthDailies {
-            let weekOfMonth = cal.component(.weekOfMonth, from: d.date)
-            weekBuckets[weekOfMonth, default: 0] += d.cost
-        }
-        let accumulatedOverage = weekBuckets.values.reduce(0.0) { acc, weekCost in
-            acc + max(0, weekCost - weeklyAllocation)
-        }
-
-        var currentWeekOverage = 0.0
-        if let weeklyForecast = allOutageForecasts.first(where: { $0.window == "Weekly" }),
-           let weeklyResetsAt = weekly.resetsAt {
-            let weekStart = weeklyResetsAt.addingTimeInterval(-7 * 24 * 3600)
-            let elapsedHours = now.timeIntervalSince(weekStart) / 3600
-            if elapsedHours > 1 {
-                let costPerHour = weekStats.totalCost / elapsedHours
-                currentWeekOverage = costPerHour * (weeklyForecast.offlineDuration / 3600)
-            }
-        }
-
+        let today = cal.startOfDay(for: Date())
         let dayOfMonth = cal.component(.day, from: today)
-        let weeksRemainingInMonth = max(0.0, Double(daysInMonth - dayOfMonth) / 7.0)
-        let projectedFutureOverage = currentWeekOverage * weeksRemainingInMonth
+        guard let daysInMonth = cal.range(of: .day, in: .month, for: today)?.count,
+              dayOfMonth > 0
+        else { return actualSoFar }
 
-        return accumulatedOverage + currentWeekOverage + projectedFutureOverage
+        // Linear projection: extrapolate observed Extra-usage spend across
+        // the full month. If we're on day 5 of a 31-day month and $10 in
+        // Extra usage has hit, project ~$62 for the month.
+        return actualSoFar * Double(daysInMonth) / Double(dayOfMonth)
     }
 
     var estimatedBillThisMonth: (subscription: Double, extraUsage: Double, total: Double)? {
@@ -1234,6 +1249,8 @@ class UsageManager: ObservableObject {
         let savedDisplayMode = ud.integer(forKey: UDKey.menuBarDisplayMode)
         self.menuBarDisplayMode = MenuBarDisplayMode(rawValue: savedDisplayMode) ?? .percentageAndTimer
         self.dailyBudget = ud.double(forKey: UDKey.dailyBudget)
+        self.anthropicSubscriptionPrice = ud.double(forKey: UDKey.anthropicSubscriptionPrice)
+        self.openaiSubscriptionPrice = ud.double(forKey: UDKey.openaiSubscriptionPrice)
         self.subscriptionMonthlyPrice = ud.double(forKey: UDKey.subscriptionMonthlyPrice)
 
         // Load ring stat labels for Icon+ mode
