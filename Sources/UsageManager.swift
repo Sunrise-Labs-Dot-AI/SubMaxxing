@@ -139,6 +139,11 @@ private struct OAuthUsageResponse: Decodable {
     let iguanaNecktie: QuotaData?
     let omelettPromotional: QuotaData?
     let extraUsage: ExtraUsageData?
+    /// Plan identifier returned by Anthropic. Personal-fork addition —
+    /// drives auto-inferred subscription pricing in `inferredAnthropicPlan`.
+    /// Observed values include "pro", "max_5x", "max_20x". Treated as
+    /// opaque; mapping done in code.
+    let planType: String?
 
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
@@ -151,6 +156,76 @@ private struct OAuthUsageResponse: Decodable {
         case iguanaNecktie = "iguana_necktie"
         case omelettPromotional = "omelette_promotional"
         case extraUsage = "extra_usage"
+        case planType = "plan_type"
+    }
+}
+
+// MARK: - Inferred subscription plans (personal-fork addition)
+//
+// Mapping from API-returned plan_type strings to human-readable plan names
+// and their published monthly USD prices. Used to auto-fill the subscription
+// component of the estimated bill instead of forcing the user to type a
+// number. Prices accurate as of 2026; if Anthropic / OpenAI shift pricing,
+// these maps need updating.
+
+struct SubscriptionPlan {
+    let name: String          // human-readable, e.g. "Claude Max 20x"
+    let monthlyPrice: Double  // USD
+    let provider: String      // "Anthropic" / "OpenAI"
+    let source: Source
+
+    enum Source {
+        case inferred(rawTier: String)   // detected from API plan_type
+        case manual                       // user-entered fallback
+        case none                         // no subscription tracked
+    }
+}
+
+enum AnthropicPlanCatalog {
+    /// Best-effort map from Anthropic plan_type → plan metadata. Loose
+    /// matching (lowercased, hyphens normalized) because the exact strings
+    /// aren't documented and may shift. Returns nil for unknown values.
+    static func plan(for rawTier: String?) -> SubscriptionPlan? {
+        guard let raw = rawTier?.lowercased().replacingOccurrences(of: "_", with: "-") else { return nil }
+        if raw.contains("max-20") || raw == "max20x" {
+            return SubscriptionPlan(name: "Claude Max 20x", monthlyPrice: 200, provider: "Anthropic", source: .inferred(rawTier: raw))
+        }
+        if raw.contains("max-5") || raw == "max5x" {
+            return SubscriptionPlan(name: "Claude Max 5x", monthlyPrice: 100, provider: "Anthropic", source: .inferred(rawTier: raw))
+        }
+        if raw == "max" {
+            // Older / generic "max" — assume top tier
+            return SubscriptionPlan(name: "Claude Max", monthlyPrice: 200, provider: "Anthropic", source: .inferred(rawTier: raw))
+        }
+        if raw == "pro" || raw.contains("pro-") {
+            return SubscriptionPlan(name: "Claude Pro", monthlyPrice: 20, provider: "Anthropic", source: .inferred(rawTier: raw))
+        }
+        if raw == "free" || raw == "team" {
+            // Team is per-seat; without seat-count info we can't infer total
+            return SubscriptionPlan(name: "Claude \(raw.capitalized)", monthlyPrice: 0, provider: "Anthropic", source: .inferred(rawTier: raw))
+        }
+        return nil
+    }
+}
+
+enum OpenAIPlanCatalog {
+    /// Same shape for OpenAI's plan_type field. Observed values include
+    /// "prolite" (ChatGPT Plus), "pro" (ChatGPT Pro), "free".
+    static func plan(for rawTier: String?) -> SubscriptionPlan? {
+        guard let raw = rawTier?.lowercased() else { return nil }
+        if raw == "prolite" || raw == "plus" {
+            return SubscriptionPlan(name: "ChatGPT Plus", monthlyPrice: 20, provider: "OpenAI", source: .inferred(rawTier: raw))
+        }
+        if raw == "pro" {
+            return SubscriptionPlan(name: "ChatGPT Pro", monthlyPrice: 200, provider: "OpenAI", source: .inferred(rawTier: raw))
+        }
+        if raw == "team" {
+            return SubscriptionPlan(name: "ChatGPT Team", monthlyPrice: 30, provider: "OpenAI", source: .inferred(rawTier: raw))
+        }
+        if raw == "free" {
+            return SubscriptionPlan(name: "ChatGPT Free", monthlyPrice: 0, provider: "OpenAI", source: .inferred(rawTier: raw))
+        }
+        return nil
     }
 }
 
@@ -403,14 +478,21 @@ class UsageManager: ObservableObject {
         }
     }
 
-    /// User's monthly subscription cost (USD). When > 0, the popover replaces
-    /// the misleading API-equivalent "Projected this month" figure with an
-    /// honest actual-bill estimate. Set via the Settings view.
+    /// Manual override / supplement (USD/mo) for any subscription cost not
+    /// captured by inferred plans (e.g., team upgrades, other LLM tools).
+    /// Summed with `inferredAnthropicPlan.monthlyPrice` and the Codex side's
+    /// inferred plan price to produce the final subscription component of
+    /// the estimated bill.
     @Published var subscriptionMonthlyPrice: Double {
         didSet {
             UserDefaults.standard.set(subscriptionMonthlyPrice, forKey: UDKey.subscriptionMonthlyPrice)
         }
     }
+
+    /// Inferred Anthropic subscription from the most recent API plan_type.
+    /// Updated whenever a new OAuth usage response is parsed. `nil` until
+    /// the first successful response (or if plan_type is missing / unknown).
+    @Published var inferredAnthropicPlan: SubscriptionPlan?
 
     // MARK: - Ring stat options (quotas + virtual timer)
 
@@ -912,6 +994,84 @@ class UsageManager: ObservableObject {
     ///   inline here to keep the formula explicit).
     /// - Future weeks of this month: project current-week overage forward,
     ///   scaled by remaining weeks. Assumes similar pattern continues.
+    /// Composite subscription cost: inferred Anthropic + inferred OpenAI +
+    /// manual override. Used by the bill estimator.
+    func totalInferredSubscription(includingCodex codex: CodexUsageManager) -> (total: Double, breakdown: [SubscriptionPlan]) {
+        var breakdown: [SubscriptionPlan] = []
+        if let a = inferredAnthropicPlan, a.monthlyPrice > 0 {
+            breakdown.append(a)
+        }
+        if let o = codex.inferredOpenAIPlan, o.monthlyPrice > 0 {
+            breakdown.append(o)
+        }
+        if subscriptionMonthlyPrice > 0 {
+            breakdown.append(SubscriptionPlan(
+                name: "Manual override",
+                monthlyPrice: subscriptionMonthlyPrice,
+                provider: "User",
+                source: .manual
+            ))
+        }
+        let total = breakdown.reduce(0) { $0 + $1.monthlyPrice }
+        return (total, breakdown)
+    }
+
+    /// Estimated bill incorporating inferred Anthropic + OpenAI plans plus any
+    /// manual override. Returns nil only when no subscription is identifiable
+    /// from any source (in which case the popover falls back to the
+    /// API-equivalent figure with a clear label).
+    func estimatedBillThisMonth(codex: CodexUsageManager) -> (subscription: Double, breakdown: [SubscriptionPlan], extraUsage: Double, total: Double)? {
+        let (subTotal, breakdown) = totalInferredSubscription(includingCodex: codex)
+        guard subTotal > 0 else { return nil }
+        let bill = computeExtraUsageMonthly()
+        return (subscription: subTotal, breakdown: breakdown, extraUsage: bill, total: subTotal + bill)
+    }
+
+    /// Extra-usage projection for the current month — same math as before,
+    /// but separated so the inferred-plan path and any future composition
+    /// can share it.
+    private func computeExtraUsageMonthly() -> Double {
+        let cal = Calendar.current
+        let now = Date()
+        let today = cal.startOfDay(for: now)
+        guard let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: today)),
+              let daysInMonth = cal.range(of: .day, in: .month, for: today)?.count
+        else { return 0 }
+
+        guard let weekly = quotas.first(where: { $0.label.contains("Weekly") }),
+              weekly.utilization > 5,
+              weekStats.totalCost > 0
+        else { return 0 }
+        let weeklyAllocation = weekStats.totalCost / (weekly.utilization / 100.0)
+
+        let monthDailies = monthStats.daily.filter { $0.date >= monthStart && $0.date < today }
+        var weekBuckets: [Int: Double] = [:]
+        for d in monthDailies {
+            let weekOfMonth = cal.component(.weekOfMonth, from: d.date)
+            weekBuckets[weekOfMonth, default: 0] += d.cost
+        }
+        let accumulatedOverage = weekBuckets.values.reduce(0.0) { acc, weekCost in
+            acc + max(0, weekCost - weeklyAllocation)
+        }
+
+        var currentWeekOverage = 0.0
+        if let weeklyForecast = allOutageForecasts.first(where: { $0.window == "Weekly" }),
+           let weeklyResetsAt = weekly.resetsAt {
+            let weekStart = weeklyResetsAt.addingTimeInterval(-7 * 24 * 3600)
+            let elapsedHours = now.timeIntervalSince(weekStart) / 3600
+            if elapsedHours > 1 {
+                let costPerHour = weekStats.totalCost / elapsedHours
+                currentWeekOverage = costPerHour * (weeklyForecast.offlineDuration / 3600)
+            }
+        }
+
+        let dayOfMonth = cal.component(.day, from: today)
+        let weeksRemainingInMonth = max(0.0, Double(daysInMonth - dayOfMonth) / 7.0)
+        let projectedFutureOverage = currentWeekOverage * weeksRemainingInMonth
+
+        return accumulatedOverage + currentWeekOverage + projectedFutureOverage
+    }
+
     var estimatedBillThisMonth: (subscription: Double, extraUsage: Double, total: Double)? {
         guard subscriptionMonthlyPrice > 0 else { return nil }
         let cal = Calendar.current
@@ -1851,6 +2011,11 @@ class UsageManager: ObservableObject {
     }
 
     private func applyUsageResponse(_ response: OAuthUsageResponse) {
+        // Personal-fork: infer Anthropic subscription from API plan_type.
+        // Falls back to nil when the field is absent / unknown; the bill
+        // estimate then either uses manual override or marks as unknown.
+        self.inferredAnthropicPlan = AnthropicPlanCatalog.plan(for: response.planType)
+
         let quotaDefs: [(quota: QuotaData?, label: String, icon: String)] = [
             (response.fiveHour,          "Session (5h)",        "bolt.fill"),
             (response.sevenDay,          "Weekly (all)",        "calendar"),

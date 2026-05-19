@@ -708,6 +708,15 @@ struct MenuBarView: View {
         }
     }
 
+    /// SF Symbol per provider, used in the bill breakdown.
+    private func planIcon(for plan: SubscriptionPlan) -> String {
+        switch plan.provider {
+        case "Anthropic": return "c.circle.fill"
+        case "OpenAI":    return "circle.hexagonpath.fill"
+        default:          return "creditcard"
+        }
+    }
+
     // MARK: - Outage banner helper (personal-fork addition)
 
     /// Renders ALL approaching outages stacked, so a larger-but-later outage
@@ -1234,11 +1243,11 @@ struct MenuBarView: View {
             // line, which is contextual rather than duplicative.
 
             // Monthly cost projection — personal-fork rework.
-            // When the user has configured a subscription price, show the
-            // actual estimated bill (subscription + projected Extra usage).
-            // Otherwise show the API-equivalent figure with a clear label
-            // so it's not mistaken for the real bill.
-            if let bill = manager.estimatedBillThisMonth {
+            // Bill = inferred Anthropic plan + inferred OpenAI plan + manual
+            // override + projected Extra usage. Inferred plans come from the
+            // respective APIs' plan_type field; user only needs to enter
+            // anything in Settings if both inferences are missing/wrong.
+            if let bill = manager.estimatedBillThisMonth(codex: codexManager) {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Image(systemName: "creditcard.fill")
@@ -1251,7 +1260,19 @@ struct MenuBarView: View {
                             .font(.system(size: 13, weight: .bold, design: .monospaced))
                             .foregroundColor(.blue)
                     }
-                    Text("Subscription \(formatCost(bill.subscription)) + Extra usage est. \(formatCost(bill.extraUsage))")
+                    // Plan breakdown — each detected plan as its own line.
+                    ForEach(Array(bill.breakdown.enumerated()), id: \.offset) { _, plan in
+                        HStack(spacing: 4) {
+                            Image(systemName: planIcon(for: plan))
+                                .font(.system(size: 9))
+                                .foregroundColor(.secondary)
+                            Text("\(plan.name) — \(formatCost(plan.monthlyPrice))/mo")
+                                .font(.system(size: 10))
+                                .foregroundColor(.secondary)
+                            Spacer(minLength: 0)
+                        }
+                    }
+                    Text("+ Extra usage est. \(formatCost(bill.extraUsage))")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                     if let forecast = manager.monthlyForecast {

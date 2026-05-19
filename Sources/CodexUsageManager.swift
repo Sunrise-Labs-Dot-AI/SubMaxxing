@@ -108,6 +108,10 @@ final class CodexUsageManager: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var errorMessage: String?
     @Published var lastRefresh: Date?
+    /// Inferred OpenAI subscription from the response's plan_type. Updated
+    /// on each successful refresh. nil until first response or if plan_type
+    /// is unknown.
+    @Published var inferredOpenAIPlan: SubscriptionPlan?
 
     // MARK: - Config
 
@@ -215,6 +219,11 @@ final class CodexUsageManager: ObservableObject {
             errorMessage = "Codex usage: parse failed (\(error.localizedDescription)). Body: \(preview)"
             return
         }
+
+        // Personal-fork: infer OpenAI subscription from plan_type. Cleared
+        // if the field is absent so we never show stale plan info after a
+        // user switches tiers.
+        self.inferredOpenAIPlan = OpenAIPlanCatalog.plan(for: response.plan_type)
 
         var built: [UsageQuota] = []
 
