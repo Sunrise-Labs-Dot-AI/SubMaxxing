@@ -77,6 +77,71 @@ enum ModelPricing {
         return Price(input: 3.0 / 1_000_000, output: 15.0 / 1_000_000,
                      cacheCreation: 3.75 / 1_000_000, cacheRead: 0.30 / 1_000_000)
     }
+
+    /// OpenAI API-equivalent pricing, standard processing, per token.
+    /// Uses contains() matching because Codex transcript model IDs include version suffixes.
+    static func codexPrice(for model: String) -> Price {
+        let m = model.lowercased()
+        if m.contains("gpt-5.5-pro") {
+            return Price(input: 30.0 / 1_000_000, output: 180.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0)
+        }
+        if m.contains("gpt-5.5") {
+            return Price(input: 5.0 / 1_000_000, output: 30.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.50 / 1_000_000)
+        }
+        if m.contains("gpt-5.4-pro") {
+            return Price(input: 30.0 / 1_000_000, output: 180.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0)
+        }
+        if m.contains("gpt-5.4-mini") {
+            return Price(input: 0.75 / 1_000_000, output: 4.50 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.075 / 1_000_000)
+        }
+        if m.contains("gpt-5.4-nano") {
+            return Price(input: 0.20 / 1_000_000, output: 1.25 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.02 / 1_000_000)
+        }
+        if m.contains("gpt-5.4") {
+            return Price(input: 2.50 / 1_000_000, output: 15.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.25 / 1_000_000)
+        }
+        if m.contains("gpt-5.3-codex") {
+            return Price(input: 1.75 / 1_000_000, output: 14.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.175 / 1_000_000)
+        }
+        if m.contains("gpt-5.2-codex") || m.contains("gpt-5.2") {
+            return Price(input: 1.75 / 1_000_000, output: 14.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.175 / 1_000_000)
+        }
+        if m.contains("gpt-5.1-codex-mini") || m.contains("gpt-5-mini") {
+            return Price(input: 0.25 / 1_000_000, output: 2.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.025 / 1_000_000)
+        }
+        if m.contains("gpt-5.1-codex") || m.contains("gpt-5.1") || m.contains("gpt-5-codex") || m.contains("gpt-5") {
+            return Price(input: 1.25 / 1_000_000, output: 10.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.125 / 1_000_000)
+        }
+        if m.contains("gpt-4o-mini") {
+            return Price(input: 0.15 / 1_000_000, output: 0.60 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.075 / 1_000_000)
+        }
+        if m.contains("gpt-4o") {
+            return Price(input: 2.50 / 1_000_000, output: 10.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 1.25 / 1_000_000)
+        }
+        if m.contains("o4-mini") {
+            return Price(input: 1.10 / 1_000_000, output: 4.40 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.275 / 1_000_000)
+        }
+        if m.contains("o3") {
+            return Price(input: 2.0 / 1_000_000, output: 8.0 / 1_000_000,
+                         cacheCreation: 0, cacheRead: 0.50 / 1_000_000)
+        }
+        Log.warn("Unknown Codex model '\(model)' — using GPT-5 pricing as fallback")
+        return Price(input: 1.25 / 1_000_000, output: 10.0 / 1_000_000,
+                     cacheCreation: 0, cacheRead: 0.125 / 1_000_000)
+    }
 }
 
 // MARK: - JSONL Codable models
@@ -163,11 +228,7 @@ struct ModelUsage: Identifiable {
     var cost: Double
 
     var shortName: String {
-        let m = model.lowercased()
-        if m.contains("opus") { return "Opus" }
-        if m.contains("sonnet") { return "Sonnet" }
-        if m.contains("haiku") { return "Haiku" }
-        return model
+        ModelPricing.shortName(for: model)
     }
 }
 
@@ -1131,6 +1192,25 @@ extension ModelPricing {
         if m.contains("opus") { return "Opus" }
         if m.contains("sonnet") { return "Sonnet" }
         if m.contains("haiku") { return "Haiku" }
+        if m.contains("gpt-5.5-pro") { return "GPT-5.5 Pro" }
+        if m.contains("gpt-5.5") { return "GPT-5.5" }
+        if m.contains("gpt-5.4-pro") { return "GPT-5.4 Pro" }
+        if m.contains("gpt-5.4-mini") { return "GPT-5.4 Mini" }
+        if m.contains("gpt-5.4-nano") { return "GPT-5.4 Nano" }
+        if m.contains("gpt-5.4") { return "GPT-5.4" }
+        if m.contains("gpt-5.3-codex") { return "GPT-5.3 Codex" }
+        if m.contains("gpt-5.2-codex") { return "GPT-5.2 Codex" }
+        if m.contains("gpt-5.2") { return "GPT-5.2" }
+        if m.contains("gpt-5.1-codex-mini") { return "GPT-5.1 Codex Mini" }
+        if m.contains("gpt-5.1-codex") { return "GPT-5.1 Codex" }
+        if m.contains("gpt-5.1") { return "GPT-5.1" }
+        if m.contains("gpt-5-codex") { return "GPT-5 Codex" }
+        if m.contains("gpt-5-mini") { return "GPT-5 Mini" }
+        if m.contains("gpt-5") { return "GPT-5" }
+        if m.contains("gpt-4o-mini") { return "GPT-4o Mini" }
+        if m.contains("gpt-4o") { return "GPT-4o" }
+        if m.contains("o4-mini") { return "o4-mini" }
+        if m.contains("o3") { return "o3" }
         return model
     }
 }
