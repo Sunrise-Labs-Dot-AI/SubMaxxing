@@ -18,8 +18,7 @@
 //
 // v1 scope: read auth file → call API → expose quotas array compatible with
 // UsageQuota so the existing quota-card UI components work unmodified.
-// Deferred: token refresh on 401 (user must run `codex` to refresh), JSONL
-// transcript parsing for analytics, auto-refresh timer.
+// Deferred: token refresh on 401 (user must run `codex` to refresh).
 
 import Foundation
 import Combine
@@ -108,6 +107,10 @@ final class CodexUsageManager: ObservableObject {
     @Published var isAuthenticated: Bool = false
     @Published var errorMessage: String?
     @Published var lastRefresh: Date?
+    @Published var todayStats: UsageStats = UsageStats()
+    @Published var weekStats: UsageStats = UsageStats()
+    @Published var monthStats: UsageStats = UsageStats()
+    @Published var isLoadingStats: Bool = false
     /// Inferred OpenAI subscription from the response's plan_type. Updated
     /// on each successful refresh. nil until first response or if plan_type
     /// is unknown.
@@ -124,16 +127,24 @@ final class CodexUsageManager: ObservableObject {
     private static let chatgptUsageURL = URL(string: "https://chatgpt.com/backend-api/wham/usage")!
 
     private static let refreshInterval: TimeInterval = 120 // 2 min, matches Claude side
+    private static let statsRefreshInterval: TimeInterval = 300 // 5 min
 
     private var refreshTimer: Timer?
+    private var statsRefreshTimer: Timer?
+    private var statsWorkItem: DispatchWorkItem?
+    private var lastStatsRefresh: Date?
 
     init() {
         refresh()
+        refreshStats()
         scheduleAutoRefresh()
+        scheduleStatsRefresh()
     }
 
     deinit {
         refreshTimer?.invalidate()
+        statsRefreshTimer?.invalidate()
+        statsWorkItem?.cancel()
     }
 
     // MARK: - Public API
@@ -200,6 +211,43 @@ final class CodexUsageManager: ObservableObject {
                 }
             }
         }.resume()
+    }
+
+    func refreshStatsIfStale() {
+        if let last = lastStatsRefresh, Date().timeIntervalSince(last) < Self.statsRefreshInterval { return }
+        refreshStats()
+    }
+
+    func refreshStats() {
+        guard !isLoadingStats else { return }
+        isLoadingStats = true
+        statsWorkItem?.cancel()
+
+        var workItem: DispatchWorkItem?
+        workItem = DispatchWorkItem { [weak self] in
+            let cal = Calendar.current
+            let now = Date()
+            let todayStart = cal.startOfDay(for: now)
+            let weekStart = cal.date(byAdding: .day, value: -7, to: now) ?? now
+            let monthStart = cal.date(byAdding: .day, value: -30, to: now) ?? now
+
+            let month = CodexSessionAnalyzer.analyze(since: monthStart, until: now)
+            let week = month.filtered(since: weekStart)
+            let today = month.filtered(since: todayStart)
+
+            DispatchQueue.main.async {
+                guard let self = self, workItem?.isCancelled == false else { return }
+                self.todayStats = today
+                self.weekStats = week
+                self.monthStats = month
+                self.isLoadingStats = false
+                self.lastStatsRefresh = Date()
+                Log.info("Codex stats: today=$\(String(format: "%.2f", today.totalCost)) week=$\(String(format: "%.2f", week.totalCost)) month=$\(String(format: "%.2f", month.totalCost)) projects=\(month.byProject.count) sessions=\(month.sessionCount)")
+            }
+        }
+        guard let workItem else { return }
+        statsWorkItem = workItem
+        DispatchQueue.global(qos: .userInitiated).async(execute: workItem)
     }
 
     // MARK: - Internal
@@ -292,6 +340,12 @@ final class CodexUsageManager: ObservableObject {
     private func scheduleAutoRefresh() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: Self.refreshInterval, repeats: true) { [weak self] _ in
             self?.refresh()
+        }
+    }
+
+    private func scheduleStatsRefresh() {
+        statsRefreshTimer = Timer.scheduledTimer(withTimeInterval: Self.statsRefreshInterval, repeats: true) { [weak self] _ in
+            self?.refreshStats()
         }
     }
 
