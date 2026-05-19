@@ -5,14 +5,14 @@ You are working on **SubMaxxing**, a macOS menu bar app that tracks Claude (Anth
 ## Repo
 
 - GitHub: `Sunrise-Labs-Dot-AI/SubMaxxing` (public)
-- Local: `~/Documents/Claude/SubMaxxing`
+- Local: `~/Documents/Claude/Projects/SubMaxxing`
 - Branch: `main`
 - Build: `make install` from the repo root (xcodegen → xcodebuild → ad-hoc codesign → /Applications)
 
 Clone fresh if you don't have it:
 ```bash
-git clone https://github.com/Sunrise-Labs-Dot-AI/SubMaxxing.git ~/Documents/Claude/SubMaxxing
-cd ~/Documents/Claude/SubMaxxing
+git clone https://github.com/Sunrise-Labs-Dot-AI/SubMaxxing.git ~/Documents/Claude/Projects/SubMaxxing
+cd ~/Documents/Claude/Projects/SubMaxxing
 brew install xcodegen   # if missing
 make install
 ```
