@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.23.0] - 2026-05-20
+
+### Added
+- **Codex analytics** — parses local Codex session transcripts, estimates API-equivalent OpenAI costs, and shows Today / 7-day / 30-day usage cards.
+- **SubMaxxing icon refresh** — replaces the legacy "C" mark with the new "S" / "SM" app identity.
+
+### Changed
+- **README cleanup** — documents the SubMaxxing fork, credits Claude God, removes stale screenshots, and clarifies that analytics are API-equivalent estimates rather than subscription billing.
+
 ## [2.22.0] - 2026-05-04
 
 ### Added
