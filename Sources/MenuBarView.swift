@@ -99,6 +99,8 @@ struct MenuBarView: View {
         // showing settings or when compact mode is the desired override.
         .frame(width: popoverWidth,
                height: manager.windowHeight)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .background(OpaqueWindowBackground())
         .animation(.easeOut(duration: 0.15), value: manager.selectedTab)
         .animation(.easeOut(duration: 0.15), value: manager.showSettings)
         .onAppear {
@@ -5143,6 +5145,26 @@ struct HeatmapGrid: View {
             }
             .padding(.top, 4)
         }
+    }
+}
+
+private struct OpaqueWindowBackground: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async { configureWindow(for: view) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async { configureWindow(for: nsView) }
+    }
+
+    private func configureWindow(for view: NSView) {
+        guard let window = view.window else { return }
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
     }
 }
 
