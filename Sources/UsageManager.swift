@@ -7,6 +7,7 @@ import SwiftUI
 import UserNotifications
 import ServiceManagement
 import WidgetKit
+import AppKit
 
 // MARK: - Intervalle d'auto-refresh
 
@@ -1214,6 +1215,10 @@ class UsageManager: ObservableObject {
     private var autoRefreshTimer: AnyCancellable?
     private var activeSessionTimer: AnyCancellable?
     private var reconnectPollTimer: AnyCancellable?
+    /// Observes the embedded terminal output for the OAuth authorize URL and
+    /// opens it natively (the CLI's own browser-launch is unreliable from a
+    /// spawned PTY). One-shot; cancelled in finishReconnect.
+    private var reconnectURLObserver: AnyCancellable?
     private var tokenHealthTimer: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
     private var isRefreshingToken = false
@@ -1683,13 +1688,42 @@ class UsageManager: ObservableObject {
         terminalSession = session
         session.start(executablePath: shell, args: ["-ilc", "\(claudeInvocation) auth login"])
         Log.info("Embedded terminal started via interactive login shell — polling Keychain every 5s")
+
+        // The CLI prints the OAuth authorize URL and tries to open a browser,
+        // but that browser-launch doesn't reliably fire from an embedded PTY.
+        // Watch the output for the URL and open it natively (once) so the
+        // user doesn't have to copy-paste it.
+        reconnectURLObserver = session.$output
+            .compactMap { Self.extractAuthorizeURL(from: $0) }
+            .first()
+            .receive(on: DispatchQueue.main)
+            .sink { url in
+                Log.info("Auto-reconnect: opening OAuth URL natively via NSWorkspace")
+                NSWorkspace.shared.open(url)
+            }
+
         startReconnectPolling()
     }
 
     private func finishReconnect() {
+        reconnectURLObserver?.cancel()
+        reconnectURLObserver = nil
         terminalSession?.stop()
         terminalSession = nil
         isAutoReconnecting = false
+    }
+
+    /// Extract the OAuth authorize URL the CLI prints to the terminal. Matches
+    /// the authorize endpoint and its query string up to the first whitespace
+    /// or ESC (ANSI) byte, so terminal control sequences don't get captured.
+    /// Returns nil until a parseable URL appears in the accumulated output.
+    static func extractAuthorizeURL(from output: String) -> URL? {
+        let pattern = "https://[^\\s\u{1B}]*oauth/authorize\\?[^\\s\u{1B}]+"
+        guard let range = output.range(of: pattern, options: .regularExpression) else {
+            return nil
+        }
+        let candidate = String(output[range])
+        return URL(string: candidate)
     }
 
     private func startReconnectPolling() {
