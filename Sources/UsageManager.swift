@@ -1652,6 +1652,14 @@ class UsageManager: ObservableObject {
         errorMessage = nil
         Log.info("Auto-reconnect: starting embedded terminal session")
 
+        // The `claude` CLI is a Node script (#!/usr/bin/env node). A GUI app's
+        // spawned process inherits a minimal PATH (/usr/bin:/bin:...) with no
+        // homebrew / nvm / fnm / volta, so invoking claude directly fails with
+        // `env: node: No such file or directory`. Run it through an INTERACTIVE
+        // LOGIN shell so the user's real PATH is sourced from their profile —
+        // the same approach VS Code / other GUI dev tools use to resolve the
+        // user environment. -i is required because nvm/fnm typically initialize
+        // in .zshrc (interactive), which a login-only shell would skip.
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let candidatePaths = [
             "/usr/local/bin/claude",
@@ -1660,17 +1668,21 @@ class UsageManager: ObservableObject {
             "\(home)/.local/bin/claude",
             "/usr/bin/claude"
         ]
-        guard let claudePath = candidatePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) else {
-            Log.warn("claude binary not found — cannot auto-reconnect")
-            isAutoReconnecting = false
-            errorMessage = "Session expired — run `claude auth login` in Terminal"
-            return
+        let claudeInvocation: String
+        if let claudePath = candidatePaths.first(where: { FileManager.default.fileExists(atPath: $0) }) {
+            claudeInvocation = "'\(claudePath)'"
+        } else {
+            // Not in a common location (e.g. nvm-managed) — defer entirely to
+            // the login shell's own PATH resolution.
+            claudeInvocation = "claude"
+            Log.info("claude not in common paths; relying on login-shell PATH resolution")
         }
 
+        let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
         let session = TerminalSession()
         terminalSession = session
-        session.start(executablePath: claudePath, args: ["auth", "login"])
-        Log.info("Embedded terminal started — polling Keychain every 5s for new credentials")
+        session.start(executablePath: shell, args: ["-ilc", "\(claudeInvocation) auth login"])
+        Log.info("Embedded terminal started via interactive login shell — polling Keychain every 5s")
         startReconnectPolling()
     }
 
