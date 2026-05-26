@@ -93,6 +93,21 @@ final class TerminalSession: ObservableObject {
         isRunning = false
     }
 
+    // MARK: - Write input
+
+    /// Send text to the child process via the PTY master. The caller is
+    /// responsible for including a trailing newline when submitting a line
+    /// (e.g. pasting an OAuth code into `claude auth login`). Without a write
+    /// path the embedded terminal is read-only, which blocks any CLI flow
+    /// that prompts for input.
+    func send(_ text: String) {
+        guard masterFD >= 0, let data = text.data(using: .utf8) else { return }
+        data.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+            guard let base = ptr.baseAddress, ptr.count > 0 else { return }
+            _ = write(masterFD, base, ptr.count)
+        }
+    }
+
     // MARK: - Read loop
 
     private func startReading() {

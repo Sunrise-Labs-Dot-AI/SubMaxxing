@@ -4617,6 +4617,7 @@ struct MenuBarView: View {
 
 struct EmbeddedTerminalView: View {
     @ObservedObject var session: TerminalSession
+    @State private var inputText: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -4665,6 +4666,33 @@ struct EmbeddedTerminalView: View {
                 }
             }
             .frame(height: 130)
+
+            // Input row — lets the user paste/type into the PTY (e.g. the
+            // OAuth code `claude auth login` prompts for). Without this the
+            // terminal is read-only and any input-prompting CLI flow stalls.
+            if session.isRunning {
+                Divider().background(Color.white.opacity(0.08))
+                HStack(spacing: 6) {
+                    Text("›")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundColor(.green.opacity(0.7))
+                    TextField("Paste code / type, then Enter", text: $inputText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundColor(.white)
+                        .onSubmit { submitInput() }
+                    Button(action: submitInput) {
+                        Image(systemName: "return")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.green.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Send to terminal")
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.black.opacity(0.4))
+            }
         }
         .background(Color(red: 0.05, green: 0.05, blue: 0.05))
         .cornerRadius(8)
@@ -4672,6 +4700,12 @@ struct EmbeddedTerminalView: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
+    }
+
+    private func submitInput() {
+        // Send the line plus a newline to submit it to the waiting CLI prompt.
+        session.send(inputText + "\n")
+        inputText = ""
     }
 }
 
